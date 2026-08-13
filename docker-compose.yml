@@ -1,0 +1,11 @@
+services:
+  fundus:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - fundus-data:/data
+
+volumes:
+  fundus-data:
