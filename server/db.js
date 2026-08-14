@@ -41,12 +41,41 @@ db.exec(`
     pruef INTEGER NOT NULL DEFAULT 0,
     letzte TEXT,
     naechste TEXT,
-    notiz TEXT DEFAULT ''
+    notiz TEXT DEFAULT '',
+    menge INTEGER NOT NULL DEFAULT 1,
+    foto TEXT DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS customers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    firma TEXT DEFAULT '',
+    email TEXT DEFAULT '',
+    telefon TEXT DEFAULT '',
+    adresse TEXT DEFAULT '',
+    notiz TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS bundles (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    notiz TEXT DEFAULT '',
+    suggested_price REAL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS bundle_items (
+    bundle_id TEXT NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+    inv TEXT NOT NULL REFERENCES inventar(inv),
+    menge INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (bundle_id, inv)
   );
 
   CREATE TABLE IF NOT EXISTS vermietungen (
     id TEXT PRIMARY KEY,
     kunde TEXT NOT NULL,
+    customer_id TEXT REFERENCES customers(id),
     von TEXT NOT NULL,
     bis TEXT NOT NULL,
     status TEXT NOT NULL,
@@ -54,6 +83,32 @@ db.exec(`
     pack TEXT NOT NULL
   );
 `);
+
+// --- lightweight migrations for columns added after initial release ---
+function ensureColumn(table, column, ddl) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+ensureColumn('inventar', 'menge', "menge INTEGER NOT NULL DEFAULT 1");
+ensureColumn('inventar', 'foto', "foto TEXT DEFAULT ''");
+ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
+
+// Older rows store vermietungen.items as a plain JSON array of inv strings
+// (["004.02.001", ...]); newer code needs [{inv, menge}, ...] to support
+// quantity items. Normalize once so every row is in the new shape.
+(function migrateVermietungItems() {
+  const rows = db.prepare('SELECT id, items FROM vermietungen').all();
+  const update = db.prepare('UPDATE vermietungen SET items = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      const parsed = JSON.parse(row.items);
+      if (parsed.length && typeof parsed[0] === 'string') {
+        update.run(JSON.stringify(parsed.map((inv) => ({ inv, menge: 1 }))), row.id);
+      }
+    }
+  });
+  tx();
+})();
 
 function seedIfEmpty() {
   const count = db.prepare('SELECT COUNT(*) AS n FROM categories').get().n;
@@ -100,37 +155,58 @@ function seedIfEmpty() {
   insertSetting.run('orange', '30');
 
   const insertItem = db.prepare(`
-    INSERT INTO inventar (inv, cat, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz)
-    VALUES (@inv, @cat, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz)
+    INSERT INTO inventar (inv, cat, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, foto)
+    VALUES (@inv, @cat, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @foto)
   `);
   const items = [
-    { inv: '004.02.001', cat: 'c-kabel-strom', bez: 'Stromkabel 10m Schuko', hersteller: 'Sommer Cable', modell: '-', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 4, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '004.02.002', cat: 'c-kabel-strom', bez: 'Stromkabel 20m Schuko', hersteller: 'Sommer Cable', modell: '-', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 5, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '004.01.001', cat: 'c-kabel-signal', bez: 'XLR-Kabel 5m', hersteller: 'Cordial', modell: 'CPM 5 FM', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 2, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '004.01.002', cat: 'c-kabel-signal', bez: 'XLR-Kabel 10m', hersteller: 'Cordial', modell: 'CPM 10 FM', serien: '', standort: 'Werkstatt', parent: '006.01.001', status: 'Verfügbar', miete: 3, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '005.01.001', cat: 'c-licht-moving', bez: 'Moving Head Beam 230', hersteller: 'Clay Paky', modell: 'Sharpy', serien: 'CP-3391', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 35, pruef: 1, letzte: '2025-07-01', naechste: '2026-07-01', notiz: '' },
-    { inv: '005.01.002', cat: 'c-licht-moving', bez: 'Moving Head Beam 230', hersteller: 'Clay Paky', modell: 'Sharpy', serien: 'CP-3392', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 35, pruef: 1, letzte: '2025-09-05', naechste: '2026-09-05', notiz: '' },
-    { inv: '005.02.001', cat: 'c-licht-par', bez: 'PAR LED Scheinwerfer', hersteller: 'Chauvet', modell: 'SlimPAR Pro', serien: 'CH-1187', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 12, pruef: 1, letzte: '2025-10-20', naechste: '2026-10-20', notiz: '' },
-    { inv: '003.01.001', cat: 'c-lautsprecher-aktiv', bez: 'Aktivbox 12"', hersteller: 'HK Audio', modell: 'Linear 5 112 FA', serien: 'HK-9012', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 35, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '003.01.002', cat: 'c-lautsprecher-aktiv', bez: 'Aktivbox 12"', hersteller: 'HK Audio', modell: 'Linear 5 112 FA', serien: 'HK-9013', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 35, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '003.03.001', cat: 'c-lautsprecher-sub', bez: 'Subwoofer 18"', hersteller: 'HK Audio', modell: 'Linear 5 118 Sub', serien: 'HK-9101', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 45, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '002.01.001', cat: 'c-ton-mischpulte', bez: 'Digitalmischpult 16-Kanal', hersteller: 'Behringer', modell: 'X32 Compact', serien: 'BG-5521', standort: 'Werkstatt', parent: null, status: 'Verfügbar', miete: 60, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '001.01.001', cat: 'c-buehne-traversen', bez: 'Traverse 2m (Alu Truss)', hersteller: 'Prolyte', modell: 'H30V', serien: '', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 8, pruef: 0, letzte: null, naechste: null, notiz: '' },
-    { inv: '001.02.001', cat: 'c-buehne-motoren', bez: 'Kettenzug 500kg', hersteller: 'ChainMaster', modell: 'BGV-C1', serien: 'CM-771', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 22, pruef: 1, letzte: '2025-08-25', naechste: '2026-08-25', notiz: '' },
-    { inv: '007.01.001', cat: 'c-strom-verteiler', bez: 'Stromverteiler 32A CEE', hersteller: 'Kübler', modell: 'V32-6x16', serien: 'KB-330', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 18, pruef: 1, letzte: '2025-11-01', naechste: '2026-11-01', notiz: '' },
-    { inv: '006.01.001', cat: 'c-cases-flight', bez: 'Flightcase 19" 12HE', hersteller: 'Thon', modell: 'Rack 12U', serien: '', standort: 'Werkstatt', parent: null, status: 'Verfügbar', miete: 6, pruef: 0, letzte: null, naechste: null, notiz: 'Enthält Kabelmaterial' },
-    { inv: '008.01.001', cat: 'c-sonstiges-werkzeug', bez: 'Werkzeugkoffer Bühnentechnik', hersteller: 'Wera', modell: 'Kraftform Kompakt', serien: '', standort: 'Fahrzeug 1', parent: null, status: 'Verfügbar', miete: 0, pruef: 0, letzte: null, naechste: null, notiz: '' },
+    { inv: '004.02.001', cat: 'c-kabel-strom', bez: 'Stromkabel 10m Schuko', hersteller: 'Sommer Cable', modell: '-', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 4, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 12, foto: '' },
+    { inv: '004.02.002', cat: 'c-kabel-strom', bez: 'Stromkabel 20m Schuko', hersteller: 'Sommer Cable', modell: '-', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 5, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 8, foto: '' },
+    { inv: '004.01.001', cat: 'c-kabel-signal', bez: 'XLR-Kabel 5m', hersteller: 'Cordial', modell: 'CPM 5 FM', serien: '', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 2, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 20, foto: '' },
+    { inv: '004.01.002', cat: 'c-kabel-signal', bez: 'XLR-Kabel 10m', hersteller: 'Cordial', modell: 'CPM 10 FM', serien: '', standort: 'Werkstatt', parent: '006.01.001', status: 'Verfügbar', miete: 3, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 10, foto: '' },
+    { inv: '005.01.001', cat: 'c-licht-moving', bez: 'Moving Head Beam 230', hersteller: 'Clay Paky', modell: 'Sharpy', serien: 'CP-3391', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 35, pruef: 1, letzte: '2025-07-01', naechste: '2026-07-01', notiz: '', menge: 1, foto: '' },
+    { inv: '005.01.002', cat: 'c-licht-moving', bez: 'Moving Head Beam 230', hersteller: 'Clay Paky', modell: 'Sharpy', serien: 'CP-3392', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 35, pruef: 1, letzte: '2025-09-05', naechste: '2026-09-05', notiz: '', menge: 1, foto: '' },
+    { inv: '005.02.001', cat: 'c-licht-par', bez: 'PAR LED Scheinwerfer', hersteller: 'Chauvet', modell: 'SlimPAR Pro', serien: 'CH-1187', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 12, pruef: 1, letzte: '2025-10-20', naechste: '2026-10-20', notiz: '', menge: 6, foto: '' },
+    { inv: '003.01.001', cat: 'c-lautsprecher-aktiv', bez: 'Aktivbox 12"', hersteller: 'HK Audio', modell: 'Linear 5 112 FA', serien: 'HK-9012', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 35, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 1, foto: '' },
+    { inv: '003.01.002', cat: 'c-lautsprecher-aktiv', bez: 'Aktivbox 12"', hersteller: 'HK Audio', modell: 'Linear 5 112 FA', serien: 'HK-9013', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 35, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 1, foto: '' },
+    { inv: '003.03.001', cat: 'c-lautsprecher-sub', bez: 'Subwoofer 18"', hersteller: 'HK Audio', modell: 'Linear 5 118 Sub', serien: 'HK-9101', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 45, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 1, foto: '' },
+    { inv: '002.01.001', cat: 'c-ton-mischpulte', bez: 'Digitalmischpult 16-Kanal', hersteller: 'Behringer', modell: 'X32 Compact', serien: 'BG-5521', standort: 'Werkstatt', parent: null, status: 'Verfügbar', miete: 60, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 1, foto: '' },
+    { inv: '001.01.001', cat: 'c-buehne-traversen', bez: 'Traverse 2m (Alu Truss)', hersteller: 'Prolyte', modell: 'H30V', serien: '', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 8, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 16, foto: '' },
+    { inv: '001.02.001', cat: 'c-buehne-motoren', bez: 'Kettenzug 500kg', hersteller: 'ChainMaster', modell: 'BGV-C1', serien: 'CM-771', standort: 'Lager 2', parent: null, status: 'Verfügbar', miete: 22, pruef: 1, letzte: '2025-08-25', naechste: '2026-08-25', notiz: '', menge: 1, foto: '' },
+    { inv: '007.01.001', cat: 'c-strom-verteiler', bez: 'Stromverteiler 32A CEE', hersteller: 'Kübler', modell: 'V32-6x16', serien: 'KB-330', standort: 'Lager 1', parent: null, status: 'Verfügbar', miete: 18, pruef: 1, letzte: '2025-11-01', naechste: '2026-11-01', notiz: '', menge: 1, foto: '' },
+    { inv: '006.01.001', cat: 'c-cases-flight', bez: 'Flightcase 19" 12HE', hersteller: 'Thon', modell: 'Rack 12U', serien: '', standort: 'Werkstatt', parent: null, status: 'Verfügbar', miete: 6, pruef: 0, letzte: null, naechste: null, notiz: 'Enthält Kabelmaterial', menge: 1, foto: '' },
+    { inv: '008.01.001', cat: 'c-sonstiges-werkzeug', bez: 'Werkzeugkoffer Bühnentechnik', hersteller: 'Wera', modell: 'Kraftform Kompakt', serien: '', standort: 'Fahrzeug 1', parent: null, status: 'Verfügbar', miete: 0, pruef: 0, letzte: null, naechste: null, notiz: '', menge: 1, foto: '' },
   ];
   const insertManyItems = db.transaction((rows) => { for (const r of rows) insertItem.run(r); });
   insertManyItems(items);
 
-  const insertRental = db.prepare('INSERT INTO vermietungen (id, kunde, von, bis, status, items, pack) VALUES (@id, @kunde, @von, @bis, @status, @items, @pack)');
+  const insertCustomer = db.prepare('INSERT INTO customers (id, name, firma, email, telefon, adresse, notiz) VALUES (@id, @name, @firma, @email, @telefon, @adresse, @notiz)');
+  const customers = [
+    { id: 'k-mueller', name: 'Familie Müller', firma: '', email: 'mueller@example.com', telefon: '', adresse: '', notiz: '' },
+    { id: 'k-abc', name: 'ABC GmbH', firma: 'ABC GmbH', email: 'events@abc-gmbh.example', telefon: '', adresse: '', notiz: '' },
+  ];
+  const insertManyCustomers = db.transaction((rows) => { for (const r of rows) insertCustomer.run(r); });
+  insertManyCustomers(customers);
+
+  const insertRental = db.prepare('INSERT INTO vermietungen (id, kunde, customer_id, von, bis, status, items, pack) VALUES (@id, @kunde, @customer_id, @von, @bis, @status, @items, @pack)');
   const rentals = [
-    { id: 'V-1', kunde: 'Hochzeit Müller', von: '2026-08-20', bis: '2026-08-22', status: 'Reserviert', items: JSON.stringify(['003.01.002', '004.02.002']), pack: JSON.stringify({ '003.01.002': false, '004.02.002': false }) },
-    { id: 'V-2', kunde: 'Firmenfeier ABC GmbH', von: '2026-07-01', bis: '2026-07-03', status: 'Abgeschlossen', items: JSON.stringify(['003.01.001', '004.01.001']), pack: JSON.stringify({ '003.01.001': true, '004.01.001': true }) },
+    { id: 'V-1', kunde: 'Hochzeit Müller', customer_id: 'k-mueller', von: '2026-08-20', bis: '2026-08-22', status: 'Reserviert', items: JSON.stringify([{ inv: '003.01.002', menge: 1 }, { inv: '004.02.002', menge: 2 }]), pack: JSON.stringify({ '003.01.002': false, '004.02.002': false }) },
+    { id: 'V-2', kunde: 'Firmenfeier ABC GmbH', customer_id: 'k-abc', von: '2026-07-01', bis: '2026-07-03', status: 'Abgeschlossen', items: JSON.stringify([{ inv: '003.01.001', menge: 1 }, { inv: '004.01.001', menge: 4 }]), pack: JSON.stringify({ '003.01.001': true, '004.01.001': true }) },
   ];
   const insertManyRentals = db.transaction((rows) => { for (const r of rows) insertRental.run(r); });
   insertManyRentals(rentals);
+
+  const insertBundle = db.prepare('INSERT INTO bundles (id, name, notiz, suggested_price) VALUES (@id, @name, @notiz, @suggested_price)');
+  const insertBundleItem = db.prepare('INSERT INTO bundle_items (bundle_id, inv, menge) VALUES (@bundle_id, @inv, @menge)');
+  const tx = db.transaction(() => {
+    insertBundle.run({ id: 'set-dj', name: 'Standard DJ-Setup', notiz: 'Aktivboxen, Sub, Kabel', suggested_price: 95 });
+    [
+      { bundle_id: 'set-dj', inv: '003.01.001', menge: 1 },
+      { bundle_id: 'set-dj', inv: '003.01.002', menge: 1 },
+      { bundle_id: 'set-dj', inv: '003.03.001', menge: 1 },
+      { bundle_id: 'set-dj', inv: '004.02.001', menge: 2 },
+    ].forEach((r) => insertBundleItem.run(r));
+  });
+  tx();
 }
 
 seedIfEmpty();

@@ -69,6 +69,47 @@ const STRINGS = {
     field_kunde:'Kunde', kunde_placeholder:'z. B. Musterkunde', field_von:'Von', field_bis:'Bis',
     choose_items:'Artikel wählen', n_selected:'{n} ausgewählt',
     not_available_range:'im gewählten Zeitraum nicht verfügbar', per_day:' / Tag',
+    belegt_range:'Belegt {von}–{bis}',
+    available_of:'{n} von {m} verfügbar',
+    field_menge:'Bestand (Stückzahl)',
+    bulk_return_note:'Sammelartikel — Bestand wird automatisch wieder freigegeben.',
+    field_photo:'Foto', add_photo:'Foto hinzufügen', remove_photo:'Foto entfernen',
+    nav_timeline:'Zeitleiste', nav_customers:'Kunden', nav_bundles:'Sets', nav_stats:'Statistik',
+    sheet_customers:'Kunden', sheet_new_customer:'Neuer Kunde',
+    btn_new_customer:'+ Kunde hinzufügen', btn_create_customer:'Kunde anlegen', btn_delete_customer:'Kunde löschen',
+    empty_customers:'Noch keine Kunden angelegt.', empty_customer_rentals:'Noch keine Vermietungen für diesen Kunden.',
+    label_rental_history:'Vermietungshistorie',
+    field_name:'Name', field_firma:'Firma', field_email:'E-Mail', field_telefon:'Telefon', field_adresse:'Adresse',
+    field_customer_pick:'Bestehenden Kunden wählen', opt_free_text:'— Freitext —',
+    toast_customer_created:'Kunde {name} angelegt', toast_customer_deleted:'Kunde gelöscht',
+    sheet_bundles:'Sets', sheet_new_bundle:'Neues Set',
+    bundles_hint:'Vorgefertigte Artikel-Zusammenstellungen für wiederkehrende Buchungen. Neue Sets werden im Inventar über die Mehrfachauswahl erstellt.',
+    empty_bundles:'Noch keine Sets angelegt.',
+    field_suggested_price:'Preisvorschlag / Tag (optional)', optional:'optional',
+    suggested_price_short:'Vorschlag {price}/Tag',
+    suggested_price_hint:'Nur eine Erinnerung für dich — beim Anlegen einer Vermietung wird trotzdem immer der reguläre Einzelpreis berechnet, du kannst frei abweichen.',
+    bundle_name_placeholder:'z. B. Standard DJ-Setup',
+    btn_create_bundle:'Set speichern', btn_delete_bundle:'Set löschen',
+    field_add_bundle:'Set hinzufügen', opt_choose_bundle:'— Set wählen —',
+    bundle_price_hint:'Preisvorschlag für „{name}“: {price}/Tag — nur ein Hinweis, keine feste Vorgabe.',
+    toast_bundle_created:'Set „{name}“ angelegt', toast_bundle_deleted:'Set gelöscht',
+    btn_select_items:'Auswählen', btn_cancel_select:'Abbrechen',
+    btn_add_to_rental:'Zur Vermietung', btn_save_as_set:'Als Set speichern',
+    sheet_stats:'Statistik', stat_total_rentals:'Vermietungen', stat_total_revenue:'Umsatz gesamt',
+    stat_most_used:'Meistgenutzte Artikel', stat_revenue_generated:'erwirtschaftet',
+    empty_stats:'Noch keine Vermietungen, noch keine Statistik.',
+    sheet_timeline:'Zeitleiste',
+    timeline_hint:'Laufende und bevorstehende Vermietungen der nächsten {n} Tage.',
+    empty_timeline:'Keine laufenden oder bevorstehenden Vermietungen in diesem Zeitraum.',
+    sheet_invoice:'Rechnung', btn_export_invoice:'Als Rechnung exportieren',
+    invoice_no:'Rechnung {id}', invoice_qty:'Menge', invoice_rate:'Preis/Tag', invoice_sum:'Summe',
+    invoice_footer:'Diese Rechnung ist ein Beispiel-Export und ersetzt keine steuerlich geprüfte Rechnungsstellung.',
+    export_title:'Datenexport', export_p:'Einzelne Tabellen als CSV herunterladen oder alles gesammelt als ZIP.',
+    export_all_zip:'Alles als ZIP herunterladen',
+    explorer_title:'Rohdaten-Explorer', explorer_p:'Alle gespeicherten Felder aller Tabellen ansehen — für Detailsuche im Zweifelsfall.',
+    explorer_open:'Rohdaten-Explorer öffnen', sheet_data_explorer:'Rohdaten-Explorer',
+    explorer_intro:'Vollständiger, ungefilterter Blick auf alle Datenbanktabellen.',
+    explorer_empty:'Keine Einträge.',
     field_miettage:'Miettage', field_total:'Gesamtpreis',
     btn_create_rental:'Vermietung anlegen',
     label_period:'Zeitraum', label_articles:'Artikel', btn_open_packlist:'Packliste öffnen',
@@ -145,6 +186,47 @@ const STRINGS = {
     field_kunde:'Customer', kunde_placeholder:'e.g. Sample Customer', field_von:'From', field_bis:'To',
     choose_items:'Select items', n_selected:'{n} selected',
     not_available_range:'not available for the selected period', per_day:' / day',
+    belegt_range:'Booked {von}–{bis}',
+    available_of:'{n} of {m} available',
+    field_menge:'Stock (quantity)',
+    bulk_return_note:'Bulk item — stock is freed automatically again.',
+    field_photo:'Photo', add_photo:'Add photo', remove_photo:'Remove photo',
+    nav_timeline:'Timeline', nav_customers:'Customers', nav_bundles:'Sets', nav_stats:'Stats',
+    sheet_customers:'Customers', sheet_new_customer:'New customer',
+    btn_new_customer:'+ Add customer', btn_create_customer:'Create customer', btn_delete_customer:'Delete customer',
+    empty_customers:'No customers yet.', empty_customer_rentals:'No rentals for this customer yet.',
+    label_rental_history:'Rental history',
+    field_name:'Name', field_firma:'Company', field_email:'Email', field_telefon:'Phone', field_adresse:'Address',
+    field_customer_pick:'Choose an existing customer', opt_free_text:'— Free text —',
+    toast_customer_created:'Customer {name} added', toast_customer_deleted:'Customer deleted',
+    sheet_bundles:'Sets', sheet_new_bundle:'New set',
+    bundles_hint:'Prebuilt article combos for recurring bookings. New sets are created from the Inventory tab using multi-select.',
+    empty_bundles:'No sets yet.',
+    field_suggested_price:'Suggested price / day (optional)', optional:'optional',
+    suggested_price_short:'Suggested {price}/day',
+    suggested_price_hint:'Just a reminder for you — creating a rental still always uses the regular per-item price, feel free to charge differently.',
+    bundle_name_placeholder:'e.g. Standard DJ setup',
+    btn_create_bundle:'Save set', btn_delete_bundle:'Delete set',
+    field_add_bundle:'Add a set', opt_choose_bundle:'— Choose a set —',
+    bundle_price_hint:'Suggested price for "{name}": {price}/day — just a hint, not a fixed rule.',
+    toast_bundle_created:'Set "{name}" created', toast_bundle_deleted:'Set deleted',
+    btn_select_items:'Select', btn_cancel_select:'Cancel',
+    btn_add_to_rental:'To rental', btn_save_as_set:'Save as set',
+    sheet_stats:'Stats', stat_total_rentals:'Rentals', stat_total_revenue:'Total revenue',
+    stat_most_used:'Most-used items', stat_revenue_generated:'generated',
+    empty_stats:'No rentals yet, no stats yet.',
+    sheet_timeline:'Timeline',
+    timeline_hint:'Active and upcoming rentals over the next {n} days.',
+    empty_timeline:'No active or upcoming rentals in this period.',
+    sheet_invoice:'Invoice', btn_export_invoice:'Export as invoice',
+    invoice_no:'Invoice {id}', invoice_qty:'Qty', invoice_rate:'Price/day', invoice_sum:'Total',
+    invoice_footer:'This invoice is a sample export and is not a tax-compliant document.',
+    export_title:'Data export', export_p:'Download individual tables as CSV, or everything at once as a ZIP.',
+    export_all_zip:'Download everything as ZIP',
+    explorer_title:'Raw data explorer', explorer_p:'See every stored field in every table — for when you need a specific detail in a hurry.',
+    explorer_open:'Open raw data explorer', sheet_data_explorer:'Raw data explorer',
+    explorer_intro:'A complete, unfiltered look at every database table.',
+    explorer_empty:'No entries.',
     field_miettage:'Rental days', field_total:'Total price',
     btn_create_rental:'Create rental',
     label_period:'Period', label_articles:'Items', btn_open_packlist:'Open packing list',
@@ -220,7 +302,8 @@ let lastRenderedTab = null;
 
 let ui = {
   tab:'start', sheetStack:[], search:'', fStatus:null, toast:null,
-  newItemDraft:null, newRentalDraft:null, returnDraft:null,
+  newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
+  selectMode:false, selectedInv: new Set(),
   expandedCats: new Set(),
   expandedSettingsCats: new Set(),
   lang: localStorage.getItem('fundus-lang') || 'de',
@@ -294,8 +377,23 @@ function activeRentalsOverlapping(von,bis,excludeId){
     return a1<=b2 && b1<=a2;
   });
 }
-function itemBookedInRange(inv,von,bis,excludeId){
-  return activeRentalsOverlapping(von,bis,excludeId).some(v=>v.items.includes(inv));
+// Conflicts are informational only -- item pickers use this to show existing
+// reservation dates next to an item, never to block selecting it.
+function overlappingReservationsFor(inv,von,bis,excludeId){
+  const out=[];
+  activeRentalsOverlapping(von,bis,excludeId).forEach(v=>{
+    const line = v.items.find(it=>it.inv===inv);
+    if(line) out.push({von:v.von, bis:v.bis, menge:line.menge, kunde:v.kunde});
+  });
+  return out;
+}
+function bookedQtyFor(inv,von,bis,excludeId){
+  return overlappingReservationsFor(inv,von,bis,excludeId).reduce((s,r)=>s+r.menge,0);
+}
+function availableTodayCount(item){
+  if(item.menge<=1) return null;
+  const todayIso = TODAY.toISOString().slice(0,10);
+  return Math.max(0, item.menge - bookedQtyFor(item.inv, todayIso, todayIso, null));
 }
 function selectableItems(){
   return state.inventar.filter(i=>i.status!=='Ausgemustert' && i.status!=='Verloren' && i.status!=='Defekt');
@@ -312,7 +410,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;
 function openSheet(s){ ui.sheetStack = [s]; render(); }
 function pushSheet(s){ ui.sheetStack.push(s); render(); }
 function popSheet(){ ui.sheetStack.pop(); render(); }
-function closeSheets(){ ui.sheetStack = []; ui.newItemDraft=null; ui.newRentalDraft=null; ui.returnDraft=null; lastSheetKey = null; render(); }
+function closeSheets(){ ui.sheetStack = []; ui.newItemDraft=null; ui.newRentalDraft=null; ui.returnDraft=null; ui.newCustomerDraft=null; ui.newBundleDraft=null; lastSheetKey = null; render(); }
 function topSheet(){ return ui.sheetStack[ui.sheetStack.length-1] || null; }
 
 /* ---------- render ---------- */
@@ -463,21 +561,28 @@ function screenStart(){
   `;
 }
 
-function itemCard(i, showPruef){
+function itemCard(i, showPruef, selectable){
   const ps = pruefStatus(i);
   const cls = showPruef && ps ? ps : '';
   const metaLine = showPruef && ps ? pruefLabel(i) : `${catPathNames(i.cat)} · ${esc(i.standort)}`;
+  const bulk = i.menge > 1;
+  const avail = bulk ? availableTodayCount(i) : null;
   const pill = showPruef && ps
     ? `<span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span>`
-    : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
+    : bulk
+      ? `<span class="pill ${avail>0?'pill-ok':'pill-rented'}">${t('available_of',{n:avail,m:i.menge})}</span>`
+      : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
+  const thumb = i.foto ? `<img class="ic-thumb" src="/photos/${encodeURIComponent(i.foto)}" alt="" loading="lazy" />` : '';
+  const selected = selectable && ui.selectedInv.has(i.inv);
   return `
-    <button class="item-card ${cls}" data-action="open-item" data-inv="${i.inv}">
+    <button class="item-card ${cls}" data-action="${selectable?'toggle-select-item':'open-item'}" data-inv="${i.inv}">
+      ${selectable? `<div class="pack-check ${selected?'checked':''}">${selected?ICONS.check:''}</div>` : thumb}
       <div class="ic-body">
         <span class="inv-num mono">${i.inv}</span>
         <span class="ic-title">${esc(i.bez)}</span>
         <span class="ic-meta">${metaLine}</span>
       </div>
-      ${pill}
+      ${selectable? '' : pill}
     </button>`;
 }
 
@@ -502,10 +607,20 @@ function renderInventarCatNode(node, depth, statusFilter){
       </button>
       ${expanded ? `
         <div class="cat-children">
-          ${directItems.map(i=>itemCard(i,false)).join('')}
+          ${directItems.map(i=>itemCard(i,false,ui.selectMode)).join('')}
           ${children.map(c=>renderInventarCatNode(c,depth+1,statusFilter)).join('')}
         </div>
       ` : ''}
+    </div>`;
+}
+
+function selectActionBar(){
+  if(!ui.selectMode || !ui.selectedInv.size) return '';
+  return `
+    <div class="select-action-bar">
+      <span class="field-hint" style="margin:0;">${t('n_selected',{n:ui.selectedInv.size})}</span>
+      <button class="btn btn-secondary" data-action="bulk-add-to-rental">${t('btn_add_to_rental')}</button>
+      <button class="btn btn-primary" data-action="bulk-save-as-set">${t('btn_save_as_set')}</button>
     </div>`;
 }
 
@@ -522,6 +637,11 @@ function screenInventar(){
       ${statuses.map(s=>`<button class="chip ${ui.fStatus===s?'active':''}" data-action="filter-status" data-val="${s}">${statusLabel(s)}</button>`).join('')}
     </div>
   `;
+  const selectToggle = `
+    <div class="tool-row">
+      <button class="tool-btn" data-action="toggle-select-mode">${ui.selectMode? t('btn_cancel_select') : t('btn_select_items')}</button>
+    </div>
+  `;
 
   if(q){
     const items = state.inventar.filter(i=>{
@@ -532,9 +652,11 @@ function screenInventar(){
       <h1 class="page-title">${t('title_inventar')}</h1>
       <p class="page-sub">${t('inv_sub',{n:items.length,m:state.inventar.length})}</p>
       ${searchBar}
+      ${selectToggle}
       <div class="card-list">
-        ${items.length? items.map(i=>itemCard(i,false)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
+        ${items.length? items.map(i=>itemCard(i,false,ui.selectMode)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
       </div>
+      ${selectActionBar()}
     `;
   }
 
@@ -543,9 +665,11 @@ function screenInventar(){
     <h1 class="page-title">${t('title_inventar')}</h1>
     <p class="page-sub">${t('inv_sub',{n:filteredTotal,m:state.inventar.length})}</p>
     ${searchBar}
+    ${selectToggle}
     <div class="cat-tree">
       ${filteredTotal? catRoots().map(r=>renderInventarCatNode(r,0,ui.fStatus)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
     </div>
+    ${selectActionBar()}
   `;
 }
 
@@ -568,7 +692,7 @@ function screenPruefungen(){
 
 function rentalTotal(v){
   const days = rentalDays(v.von,v.bis);
-  return v.items.reduce((sum,inv)=>{ const it=byInv(inv); return sum + (it?it.miete*days:0); },0);
+  return v.items.reduce((sum,it)=>{ const item=byInv(it.inv); return sum + (item?item.miete*days*it.menge:0); },0);
 }
 function rentalStatusPill(status){
   const map = {Reserviert:'pill-warn',Aktiv:'pill-rented',Abgeschlossen:'pill-off'};
@@ -581,6 +705,12 @@ function screenVermietungen(){
   return `
     <h1 class="page-title">${t('title_vermietungen')}</h1>
     <p class="page-sub">${t('verm_sub',{n:state.vermietungen.length})}</p>
+    <div class="tool-row">
+      <button class="tool-btn" data-action="open-timeline">${ICONS.calendar}${t('nav_timeline')}</button>
+      <button class="tool-btn" data-action="open-customers">${t('nav_customers')}</button>
+      <button class="tool-btn" data-action="open-bundles">${t('nav_bundles')}</button>
+      <button class="tool-btn" data-action="open-stats">${t('nav_stats')}</button>
+    </div>
     <div class="card-list">
       ${list.length? list.map(v=>`
         <button class="item-card" data-action="open-rental" data-id="${v.id}">
@@ -641,19 +771,26 @@ function renderCatSelectTree(selectedId){
 }
 
 function rentalItemRow(i,d){
-  const days = rentalDays(d.von,d.bis);
-  const busy = i.status==='Vermietet' || i.status==='Reserviert' || itemBookedInRange(i.inv,d.von,d.bis,null);
-  const picked = d.items.includes(i.inv);
-  const disabled = busy && !picked;
+  const entry = d.items.find(x=>x.inv===i.inv);
+  const picked = !!entry;
+  const bulk = i.menge > 1;
+  const reservations = overlappingReservationsFor(i.inv, d.von, d.bis, null);
+  const bookedQty = reservations.reduce((s,r)=>s+r.menge,0);
+  const availableQty = Math.max(0, i.menge - bookedQty);
+  const conflictNote = reservations.length
+    ? reservations.map(r=>t('belegt_range',{von:fmtDate(r.von),bis:fmtDate(r.bis)})).join(', ')
+    : '';
   return `
-    <button class="item-card" style="${disabled?'opacity:.45;':''}" data-action="toggle-rental-item" data-inv="${i.inv}" ${disabled?'disabled':''}>
-      <div class="pack-check ${picked?'checked':''}">${picked?ICONS.check:''}</div>
-      <div class="ic-body">
+    <div class="item-card rental-pick-row">
+      <button class="pack-check ${picked?'checked':''}" data-action="toggle-rental-item" data-inv="${i.inv}" aria-label="${esc(i.bez)}">${picked?ICONS.check:''}</button>
+      <button class="ic-body" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;" data-action="toggle-rental-item" data-inv="${i.inv}">
         <span class="inv-num mono">${i.inv}</span>
         <span class="ic-title">${esc(i.bez)}</span>
-        <span class="ic-meta">${disabled? t('not_available_range') : fmtEuro(i.miete)+t('per_day')}</span>
-      </div>
-    </button>`;
+        <span class="ic-meta">${fmtEuro(i.miete)}${t('per_day')}${bulk?' · '+t('available_of',{n:availableQty,m:i.menge}):''}</span>
+      </button>
+      ${bulk && picked ? `<input class="qty-input" type="number" min="1" max="${i.menge}" value="${entry.menge}" data-action="set-rental-item-qty" data-inv="${i.inv}" />` : ''}
+      ${conflictNote ? `<span class="conflict-note">${esc(conflictNote)}</span>` : ''}
+    </div>`;
 }
 
 function renderRentalCatNode(node, depth, d){
@@ -736,6 +873,26 @@ function screenEinstellungen(){
       </div>
     </div>
 
+    <div class="settings-card">
+      <h3>${t('export_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('export_p')}</p>
+      <div class="export-link-row">
+        <a class="tool-btn" href="/api/export/csv/inventar">${t('tab_inventar')} CSV</a>
+        <a class="tool-btn" href="/api/export/csv/vermietungen">${t('tab_vermietungen')} CSV</a>
+        <a class="tool-btn" href="/api/export/csv/customers">${t('nav_customers')} CSV</a>
+        <a class="tool-btn" href="/api/export/csv/bundles">${t('nav_bundles')} CSV</a>
+        <a class="tool-btn" href="/api/export/csv/categories">${t('cat_title')} CSV</a>
+        <a class="tool-btn" href="/api/export/csv/standorte">${t('standorte_title')} CSV</a>
+      </div>
+      <a class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:10px;" href="/api/export/all.zip">${t('export_all_zip')}</a>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('explorer_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('explorer_p')}</p>
+      <button class="link-btn" data-action="open-data-explorer">${t('explorer_open')}</button>
+    </div>
+
     <div class="info-card">
       <h3>${t('data_title')}</h3>
       <p>${t('data_p')}</p>
@@ -756,6 +913,15 @@ function sheetOverlay(){
   else if(s.type==='packlist'){ const v = state.vermietungen.find(x=>x.id===s.id); title = t('sheet_packlist'); body = packlistSheet(v); }
   else if(s.type==='return'){ const v = state.vermietungen.find(x=>x.id===s.id); title = t('sheet_return'); body = returnSheet(v); }
   else if(s.type==='pick-category'){ title = t('sheet_pick_category'); body = pickCategorySheet(s); }
+  else if(s.type==='customers'){ title = t('sheet_customers'); body = customersSheet(); }
+  else if(s.type==='customer'){ const c = state.customers.find(x=>x.id===s.id); title = c.name; body = customerDetailSheet(c); }
+  else if(s.type==='new-customer'){ title = t('sheet_new_customer'); body = newCustomerSheet(); }
+  else if(s.type==='bundles'){ title = t('sheet_bundles'); body = bundlesSheet(); }
+  else if(s.type==='bundle'){ const b = state.bundles.find(x=>x.id===s.id); title = b.name; body = bundleDetailSheet(b); }
+  else if(s.type==='new-bundle'){ title = t('sheet_new_bundle'); body = newBundleSheet(); }
+  else if(s.type==='timeline'){ title = t('sheet_timeline'); body = timelineSheet(); }
+  else if(s.type==='stats'){ title = t('sheet_stats'); body = statsSheet(); }
+  else if(s.type==='data-explorer'){ title = t('sheet_data_explorer'); body = dataExplorerSheet(); }
 
   const canBack = ui.sheetStack.length>1;
   const key = s.type+':'+(s.id||s.inv||s.for||'');
@@ -785,6 +951,21 @@ function itemDetailSheet(i){
       <input type="text" data-action="edit-item" data-field="bez" data-inv="${i.inv}" value="${esc(i.bez)}" />
     </div>
     <span class="pill ${statusPillClass(i.status)}" style="margin-bottom:14px;display:inline-block;">${statusLabel(i.status)}</span>
+
+    <div class="field">
+      <label>${t('field_photo')}</label>
+      ${i.foto ? `
+        <div class="photo-row">
+          <img class="photo-preview" src="/photos/${encodeURIComponent(i.foto)}" alt="" />
+          <button class="link-btn" data-action="remove-item-photo" data-inv="${i.inv}">${t('remove_photo')}</button>
+        </div>
+      ` : `
+        <label class="photo-upload-btn">
+          ${t('add_photo')}
+          <input type="file" accept="image/*" data-action="upload-item-photo" data-inv="${i.inv}" style="display:none;" />
+        </label>
+      `}
+    </div>
 
     <div class="detail-grid">
       <div class="detail-item span2">
@@ -820,6 +1001,10 @@ function itemDetailSheet(i){
           ${state.inventar.filter(x=>x.inv!==i.inv).map(x=>`<option value="${x.inv}" ${x.inv===i.parent?'selected':''}>${x.inv} – ${esc(x.bez)}</option>`).join('')}
         </select>
       </div>
+    </div>
+    <div class="field">
+      <label>${t('field_menge')}</label>
+      <input type="number" min="1" data-action="edit-item" data-field="menge" data-inv="${i.inv}" value="${i.menge}" />
     </div>
 
     ${children.length? `
@@ -857,7 +1042,7 @@ function newItemSheet(){
   const d = ui.newItemDraft || (ui.newItemDraft = {
     inv:'', cat: firstLeafDefault(),
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
-    miete:'', pruef:false, letzte:'', intervall:12, notiz:''
+    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1
   });
   return `
     <div class="field">
@@ -886,11 +1071,14 @@ function newItemSheet(){
       <div class="field"><label>${t('field_serien')}</label><input type="text" data-action="draft-item" data-field="serien" value="${esc(d.serien)}" /></div>
       <div class="field"><label>${t('field_miete_eur')}</label><input type="number" min="0" data-action="draft-item" data-field="miete" value="${esc(d.miete)}" /></div>
     </div>
-    <div class="field">
-      <label>${t('field_standort')}</label>
-      <select data-action="draft-item" data-field="standort">
-        ${state.standorte.map(s=>`<option ${s===d.standort?'selected':''}>${s}</option>`).join('')}
-      </select>
+    <div class="field-row">
+      <div class="field">
+        <label>${t('field_standort')}</label>
+        <select data-action="draft-item" data-field="standort">
+          ${state.standorte.map(s=>`<option ${s===d.standort?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field"><label>${t('field_menge')}</label><input type="number" min="1" data-action="draft-item" data-field="menge" value="${esc(d.menge)}" /></div>
     </div>
     <div class="checkbox-field">
       <input type="checkbox" id="draft-pruef" data-action="draft-item" data-field="pruef" ${d.pruef?'checked':''} />
@@ -930,17 +1118,18 @@ function rentalDetailSheet(v){
     <div class="divider"></div>
     <div class="section-head"><h2>${t('label_articles')}</h2></div>
     <div class="card-list">
-      ${v.items.map(inv=>{ const it=byInv(inv); if(!it) return ''; return `
+      ${v.items.map(({inv,menge})=>{ const it=byInv(inv); if(!it) return ''; const lineTotal = it.miete*days*menge; return `
         <div class="item-card" style="cursor:default;">
           <div class="ic-body">
             <span class="inv-num mono">${it.inv}</span>
-            <span class="ic-title">${esc(it.bez)}</span>
-            <span class="ic-meta">${fmtEuro(it.miete)} × ${days} = ${fmtEuro(it.miete*days)}</span>
+            <span class="ic-title">${esc(it.bez)}${menge>1?` × ${menge}`:''}</span>
+            <span class="ic-meta">${fmtEuro(it.miete)} × ${days}${menge>1?` × ${menge}`:''} = ${fmtEuro(lineTotal)}</span>
           </div>
         </div>`; }).join('')}
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" data-action="open-packlist" data-id="${v.id}">${t('btn_open_packlist')}</button>
+      <button class="btn btn-secondary" data-action="export-invoice" data-id="${v.id}">${t('btn_export_invoice')}</button>
     </div>
     ${v.status==='Reserviert'? `<div class="btn-row"><button class="btn btn-primary" data-action="rental-start" data-id="${v.id}">${t('btn_mark_handed_out')}</button></div>`:''}
     ${v.status==='Aktiv'? `<div class="btn-row"><button class="btn btn-primary" data-action="open-return" data-id="${v.id}">${t('btn_record_return')}</button></div>`:''}
@@ -958,10 +1147,19 @@ function rentalDetailSheet(v){
 }
 
 function newRentalSheet(){
-  const d = ui.newRentalDraft || (ui.newRentalDraft = { kunde:'', von:'2026-08-20', bis:'2026-08-22', items:[] });
+  const d = ui.newRentalDraft || (ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items:[] });
   const days = rentalDays(d.von,d.bis);
-  const total = d.items.reduce((sum,inv)=>{ const it=byInv(inv); return sum+(it?it.miete*days:0); },0);
+  const total = d.items.reduce((sum,it)=>{ const item=byInv(it.inv); return sum+(item?item.miete*days*it.menge:0); },0);
   return `
+    ${state.customers.length? `
+      <div class="field">
+        <label>${t('field_customer_pick')}</label>
+        <select data-action="pick-rental-customer">
+          <option value="">${t('opt_free_text')}</option>
+          ${state.customers.map(c=>`<option value="${c.id}" ${d.customerId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>
+    ` : ''}
     <div class="field">
       <label>${t('field_kunde')}</label>
       <input type="text" data-action="draft-rental" data-field="kunde" value="${esc(d.kunde)}" placeholder="${t('kunde_placeholder')}" />
@@ -970,6 +1168,16 @@ function newRentalSheet(){
       <div class="field"><label>${t('field_von')}</label><input type="date" data-action="draft-rental" data-field="von" value="${esc(d.von)}" /></div>
       <div class="field"><label>${t('field_bis')}</label><input type="date" data-action="draft-rental" data-field="bis" value="${esc(d.bis)}" /></div>
     </div>
+    ${state.bundles.length? `
+      <div class="field">
+        <label>${t('field_add_bundle')}</label>
+        <select data-action="add-bundle-to-rental">
+          <option value="">${t('opt_choose_bundle')}</option>
+          ${state.bundles.map(b=>`<option value="${b.id}">${esc(b.name)}</option>`).join('')}
+        </select>
+        ${d.lastBundleHint? `<span class="field-hint">${esc(d.lastBundleHint)}</span>` : ''}
+      </div>
+    ` : ''}
     <div class="section-head"><h2>${t('choose_items')}</h2><span class="field-hint">${t('n_selected',{n:d.items.length})}</span></div>
     <div class="cat-tree">
       ${catRoots().map(r=>renderRentalCatNode(r,0,d)).join('')}
@@ -991,11 +1199,11 @@ function packlistSheet(v){
     <p class="page-sub" style="margin-bottom:10px;">${esc(v.kunde)} · ${fmtDate(v.von)} – ${fmtDate(v.bis)}</p>
     <button class="btn btn-secondary" data-action="export-pdf" data-id="${v.id}" style="margin-bottom:14px;">${t('btn_export_pdf')}</button>
     <div class="card-list" style="margin-bottom:6px;">
-      ${v.items.map(inv=>{ const it=byInv(inv); if(!it) return ''; const done = !!v.pack[inv]; return `
+      ${v.items.map(({inv,menge})=>{ const it=byInv(inv); if(!it) return ''; const done = !!v.pack[inv]; return `
         <div class="pack-row ${done?'checked':''}" data-action="toggle-pack" data-id="${v.id}" data-inv="${inv}">
           <div class="pack-check ${done?'checked':''}">${done?ICONS.check:''}</div>
           <div style="flex:1;">
-            <div class="pr-title">${esc(it.bez)}</div>
+            <div class="pr-title">${esc(it.bez)}${menge>1?` × ${menge}`:''}</div>
             <div class="pr-sub mono">${it.inv}${it.serien?' · '+esc(it.serien):''}</div>
           </div>
         </div>`; }).join('')}
@@ -1011,7 +1219,7 @@ function exportPackingListPdf(v){
   // Group items by their category, preserving first-appearance order.
   const groups = [];
   const groupIndex = {};
-  v.items.forEach(inv=>{
+  v.items.forEach(({inv,menge})=>{
     const it = byInv(inv);
     if(!it) return;
     const node = catNode(it.cat);
@@ -1020,13 +1228,13 @@ function exportPackingListPdf(v){
       groupIndex[name] = groups.length;
       groups.push({ name, items: [] });
     }
-    groups[groupIndex[name]].items.push(it);
+    groups[groupIndex[name]].items.push({ ...it, menge });
   });
 
   const rows = groups.map((g,gi)=> g.items.map((it,idx)=>`
       <tr class="${idx===0?'group-start':''}">
         ${idx===0? `<td class="cat" rowspan="${g.items.length}">${esc(g.name)}</td>` : ''}
-        <td class="item">${esc(it.bez)}</td>
+        <td class="item">${esc(it.bez)}${it.menge>1?` × ${it.menge}`:''}</td>
         <td class="code mono">${esc(it.inv)}</td>
       </tr>`).join('')
   ).join('');
@@ -1082,11 +1290,94 @@ function exportPackingListPdf(v){
   setTimeout(()=>{ try{ win.print(); }catch(e){} }, 300);
 }
 
+function exportInvoicePdf(v){
+  const days = rentalDays(v.von,v.bis);
+  const todayIso = new Date().toISOString().slice(0,10);
+  const rows = v.items.map((it,idx)=>{
+    const item = byInv(it.inv);
+    if(!item) return '';
+    const lineTotal = item.miete*days*it.menge;
+    return `
+      <tr>
+        <td class="pos">${idx+1}</td>
+        <td class="item">${esc(item.bez)}</td>
+        <td class="num mono">${it.menge}</td>
+        <td class="num mono">${days}</td>
+        <td class="num mono">${fmtEuro(item.miete)}</td>
+        <td class="num mono">${fmtEuro(lineTotal)}</td>
+      </tr>`;
+  }).join('');
+  const total = rentalTotal(v);
+
+  const html = `<!doctype html>
+<html lang="${ui.lang}">
+<head>
+<meta charset="utf-8">
+<title>${esc(t('sheet_invoice'))} ${esc(v.id)}</title>
+<style>
+  @page { margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1c2036; margin: 0; padding: 24px; }
+  .letterhead { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .mark { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
+  .brand { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+  h1 { font-size: 20px; margin: 0 0 3px; letter-spacing: -.01em; }
+  .sub { color: #5c6379; font-size: 13px; margin: 0 0 20px; }
+  .meta { display: flex; justify-content: space-between; gap: 36px; margin-bottom: 26px; }
+  .meta div span { display:block; color:#5c6379; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .meta div b { font-size: 13.5px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 18px; }
+  th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #5c6379; padding: 0 8px 8px 0; border-bottom: 1px solid #dadfea; }
+  th.num, td.num { text-align: right; }
+  td { padding: 7px 8px 7px 0; vertical-align: top; border-bottom: 1px solid #eef0f5; }
+  .totals { display: flex; justify-content: flex-end; }
+  .totals table { width: auto; min-width: 240px; margin: 0; }
+  .totals td { border: none; padding: 4px 0; }
+  .totals .total-row td { font-weight: 700; font-size: 15px; border-top: 1px solid #1c2036; padding-top: 8px; }
+  footer { margin-top: 30px; font-size: 10.5px; color: #9aa1b5; }
+</style>
+</head>
+<body>
+  <div class="letterhead"><img class="mark" src="/icons/brand-mark.png" alt=""><span class="brand">Fundus</span></div>
+  <h1>${esc(t('sheet_invoice'))}</h1>
+  <p class="sub">${esc(t('invoice_no',{id:v.id}))} · ${fmtDate(todayIso)}</p>
+  <div class="meta">
+    <div><span>${esc(t('field_kunde'))}</span><b>${esc(v.kunde)}</b></div>
+    <div><span>${esc(t('label_period'))}</span><b>${fmtDate(v.von)} – ${fmtDate(v.bis)} (${days} ${esc(t('pdf_days'))})</b></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>#</th><th>${esc(t('field_bez'))}</th><th class="num">${esc(t('invoice_qty'))}</th><th class="num">${esc(t('field_miettage'))}</th><th class="num">${esc(t('invoice_rate'))}</th><th class="num">${esc(t('invoice_sum'))}</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="totals">
+    <table>
+      <tr class="total-row"><td>${esc(t('field_total'))}</td><td class="num mono">${fmtEuro(total)}</td></tr>
+    </table>
+  </div>
+  <footer>Fundus · ${esc(t('invoice_footer'))}</footer>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if(!win){ showToast(t('toast_popup_blocked')); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ try{ win.print(); }catch(e){} }, 300);
+}
+
 function returnSheet(v){
-  const d = ui.returnDraft || (ui.returnDraft = Object.fromEntries(v.items.map(inv=>[inv,'Verfügbar'])));
+  const d = ui.returnDraft || (ui.returnDraft = Object.fromEntries(v.items.map(({inv})=>[inv,'Verfügbar'])));
   return `
     <p class="page-sub" style="margin-bottom:10px;">${t('return_intro')}</p>
-    ${v.items.map(inv=>{ const it=byInv(inv); return `
+    ${v.items.map(({inv,menge})=>{ const it=byInv(inv); if(!it) return ''; if(it.menge>1){ return `
+      <div class="field">
+        <label>${it.inv} — ${esc(it.bez)}${menge>1?` × ${menge}`:''}</label>
+        <p class="field-hint">${t('bulk_return_note')}</p>
+      </div>`; } return `
       <div class="field">
         <label>${it.inv} — ${esc(it.bez)}</label>
         <select data-action="draft-return" data-inv="${inv}">
@@ -1098,6 +1389,280 @@ function returnSheet(v){
     <div class="btn-row">
       <button class="btn btn-primary" data-action="confirm-return" data-id="${v.id}">${t('btn_complete_return')}</button>
     </div>
+  `;
+}
+
+/* ---------- customers ---------- */
+
+function customersSheet(){
+  const list = [...state.customers].sort((a,b)=>a.name.localeCompare(b.name));
+  return `
+    <button class="btn btn-secondary" data-action="open-new-customer" style="margin-bottom:14px;">${t('btn_new_customer')}</button>
+    <div class="card-list">
+      ${list.length? list.map(c=>`
+        <button class="item-card" data-action="open-customer" data-id="${c.id}">
+          <div class="ic-body">
+            <span class="ic-title">${esc(c.name)}</span>
+            <span class="ic-meta">${esc(c.firma||c.email||c.telefon||'')}</span>
+          </div>
+        </button>
+      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_customers')}</p></div>`}
+    </div>
+  `;
+}
+
+function customerDetailSheet(c){
+  const rentals = state.vermietungen.filter(v=>v.customer_id===c.id).sort((a,b)=> a.von<b.von?1:-1);
+  return `
+    <div class="field"><label>${t('field_name')}</label><input type="text" data-action="edit-customer" data-field="name" data-id="${c.id}" value="${esc(c.name)}" /></div>
+    <div class="field-row">
+      <div class="field"><label>${t('field_firma')}</label><input type="text" data-action="edit-customer" data-field="firma" data-id="${c.id}" value="${esc(c.firma)}" /></div>
+      <div class="field"><label>${t('field_email')}</label><input type="email" data-action="edit-customer" data-field="email" data-id="${c.id}" value="${esc(c.email)}" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>${t('field_telefon')}</label><input type="text" data-action="edit-customer" data-field="telefon" data-id="${c.id}" value="${esc(c.telefon)}" /></div>
+      <div class="field"><label>${t('field_adresse')}</label><input type="text" data-action="edit-customer" data-field="adresse" data-id="${c.id}" value="${esc(c.adresse)}" /></div>
+    </div>
+    <div class="field"><label>${t('field_notiz')}</label><textarea data-action="edit-customer" data-field="notiz" data-id="${c.id}">${esc(c.notiz)}</textarea></div>
+
+    <div class="divider"></div>
+    <div class="section-head"><h2>${t('label_rental_history')}</h2></div>
+    <div class="card-list">
+      ${rentals.length? rentals.map(v=>`
+        <button class="item-card" data-action="open-rental" data-id="${v.id}">
+          <div class="ic-body">
+            <span class="inv-num mono">${fmtDate(v.von)} – ${fmtDate(v.bis)}</span>
+            <span class="ic-title">${fmtEuro(rentalTotal(v))}</span>
+          </div>
+          <span class="pill ${rentalStatusPill(v.status)}">${rentalStatusLabel(v.status)}</span>
+        </button>
+      `).join('') : `<p class="field-hint">${t('empty_customer_rentals')}</p>`}
+    </div>
+
+    <div class="divider"></div>
+    <button class="btn btn-secondary" data-action="delete-customer" data-id="${c.id}" style="color:var(--status-crit);">${t('btn_delete_customer')}</button>
+  `;
+}
+
+function newCustomerSheet(){
+  const d = ui.newCustomerDraft || (ui.newCustomerDraft = { name:'', firma:'', email:'', telefon:'', adresse:'', notiz:'' });
+  return `
+    <div class="field"><label>${t('field_name')}</label><input type="text" data-action="draft-customer" data-field="name" value="${esc(d.name)}" /></div>
+    <div class="field-row">
+      <div class="field"><label>${t('field_firma')}</label><input type="text" data-action="draft-customer" data-field="firma" value="${esc(d.firma)}" /></div>
+      <div class="field"><label>${t('field_email')}</label><input type="email" data-action="draft-customer" data-field="email" value="${esc(d.email)}" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>${t('field_telefon')}</label><input type="text" data-action="draft-customer" data-field="telefon" value="${esc(d.telefon)}" /></div>
+      <div class="field"><label>${t('field_adresse')}</label><input type="text" data-action="draft-customer" data-field="adresse" value="${esc(d.adresse)}" /></div>
+    </div>
+    <div class="field"><label>${t('field_notiz')}</label><textarea data-action="draft-customer" data-field="notiz">${esc(d.notiz)}</textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" data-action="save-new-customer" ${!d.name?'disabled style="opacity:.5;"':''}>${t('btn_create_customer')}</button>
+    </div>
+  `;
+}
+
+/* ---------- equipment bundles / sets ---------- */
+
+function bundlesSheet(){
+  const list = [...state.bundles].sort((a,b)=>a.name.localeCompare(b.name));
+  return `
+    <p class="field-hint" style="margin-bottom:14px;">${t('bundles_hint')}</p>
+    <div class="card-list">
+      ${list.length? list.map(b=>`
+        <button class="item-card" data-action="open-bundle" data-id="${b.id}">
+          <div class="ic-body">
+            <span class="ic-title">${esc(b.name)}</span>
+            <span class="ic-meta">${t('n_selected',{n:b.items.length})}${b.suggestedPrice!=null?' · '+t('suggested_price_short',{price:fmtEuro(b.suggestedPrice)}):''}</span>
+          </div>
+        </button>
+      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_bundles')}</p></div>`}
+    </div>
+  `;
+}
+
+function bundleDetailSheet(b){
+  return `
+    <div class="field"><label>${t('field_name')}</label><input type="text" data-action="edit-bundle" data-field="name" data-id="${b.id}" value="${esc(b.name)}" /></div>
+    <div class="field"><label>${t('field_notiz')}</label><textarea data-action="edit-bundle" data-field="notiz" data-id="${b.id}">${esc(b.notiz)}</textarea></div>
+    <div class="field">
+      <label>${t('field_suggested_price')}</label>
+      <input type="number" min="0" step="0.01" data-action="edit-bundle" data-field="suggestedPrice" data-id="${b.id}" value="${b.suggestedPrice!=null?b.suggestedPrice:''}" placeholder="${t('optional')}" />
+      <span class="field-hint">${t('suggested_price_hint')}</span>
+    </div>
+    <div class="divider"></div>
+    <div class="section-head"><h2>${t('label_articles')}</h2></div>
+    <div class="card-list">
+      ${b.items.map(it=>{ const item=byInv(it.inv); if(!item) return ''; return `
+        <div class="item-card" style="cursor:default;">
+          <div class="ic-body">
+            <span class="inv-num mono">${item.inv}</span>
+            <span class="ic-title">${esc(item.bez)}${it.menge>1?` × ${it.menge}`:''}</span>
+          </div>
+          <button class="icon-btn" data-action="remove-bundle-item" data-id="${b.id}" data-inv="${it.inv}">${ICONS.close}</button>
+        </div>`; }).join('')}
+    </div>
+    <div class="divider"></div>
+    <button class="btn btn-secondary" data-action="delete-bundle" data-id="${b.id}" style="color:var(--status-crit);">${t('btn_delete_bundle')}</button>
+  `;
+}
+
+function newBundleSheet(){
+  const d = ui.newBundleDraft;
+  if(!d) return '';
+  return `
+    <div class="field"><label>${t('field_name')}</label><input type="text" data-action="draft-bundle" data-field="name" value="${esc(d.name)}" placeholder="${t('bundle_name_placeholder')}" /></div>
+    <div class="field">
+      <label>${t('field_suggested_price')}</label>
+      <input type="number" min="0" step="0.01" data-action="draft-bundle" data-field="suggestedPrice" value="${esc(d.suggestedPrice)}" placeholder="${t('optional')}" />
+      <span class="field-hint">${t('suggested_price_hint')}</span>
+    </div>
+    <div class="field"><label>${t('field_notiz')}</label><textarea data-action="draft-bundle" data-field="notiz">${esc(d.notiz)}</textarea></div>
+    <div class="section-head"><h2>${t('label_articles')}</h2></div>
+    <div class="card-list">
+      ${d.items.map(it=>{ const item=byInv(it.inv); if(!item) return ''; return `
+        <div class="item-card" style="cursor:default;">
+          <div class="ic-body">
+            <span class="inv-num mono">${item.inv}</span>
+            <span class="ic-title">${esc(item.bez)}</span>
+          </div>
+          ${item.menge>1?`<input class="qty-input" type="number" min="1" max="${item.menge}" value="${it.menge}" data-action="set-bundle-draft-qty" data-inv="${it.inv}" />`:''}
+        </div>`; }).join('')}
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" data-action="save-new-bundle" ${!d.name?'disabled style="opacity:.5;"':''}>${t('btn_create_bundle')}</button>
+    </div>
+  `;
+}
+
+/* ---------- statistics ---------- */
+
+function statsSheet(){
+  const usage = {};
+  state.vermietungen.forEach(v=>{
+    const days = rentalDays(v.von, v.bis);
+    v.items.forEach(({inv,menge})=>{
+      const item = byInv(inv);
+      if(!item) return;
+      if(!usage[inv]) usage[inv] = { inv, bez:item.bez, count:0, totalQty:0, revenue:0 };
+      usage[inv].count += 1;
+      usage[inv].totalQty += menge;
+      usage[inv].revenue += item.miete*days*menge;
+    });
+  });
+  const ranked = Object.values(usage).sort((a,b)=>b.count-a.count).slice(0,20);
+  const totalRevenue = state.vermietungen.reduce((sum,v)=>sum+rentalTotal(v),0);
+  const maxCount = ranked.length ? ranked[0].count : 1;
+
+  return `
+    <div class="stat-grid" style="margin-bottom:20px;">
+      <div class="stat-tile"><span class="stat-num">${state.vermietungen.length}</span><span class="stat-label">${t('stat_total_rentals')}</span></div>
+      <div class="stat-tile"><span class="stat-num">${fmtEuro(totalRevenue)}</span><span class="stat-label">${t('stat_total_revenue')}</span></div>
+      <div class="stat-tile"><span class="stat-num">${state.customers.length}</span><span class="stat-label">${t('nav_customers')}</span></div>
+      <div class="stat-tile"><span class="stat-num">${state.inventar.length}</span><span class="stat-label">${t('stat_total')}</span></div>
+    </div>
+    <div class="section-head"><h2>${t('stat_most_used')}</h2></div>
+    <div class="usage-list">
+      ${ranked.length? ranked.map(u=>`
+        <div class="usage-row">
+          <div class="usage-row-top">
+            <span class="ic-title">${esc(u.bez)}</span>
+            <span class="mono">${u.count}×</span>
+          </div>
+          <div class="usage-bar"><div class="usage-bar-fill" style="width:${Math.round(u.count/maxCount*100)}%;"></div></div>
+          <div class="field-hint">${esc(u.inv)} · ${fmtEuro(u.revenue)} ${t('stat_revenue_generated')}</div>
+        </div>
+      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_stats')}</p></div>`}
+    </div>
+  `;
+}
+
+/* ---------- availability timeline ---------- */
+
+function timelineSheet(){
+  const windowDays = 60;
+  const start = new Date(TODAY);
+  const rentals = state.vermietungen
+    .filter(v=>v.status!=='Abgeschlossen')
+    .sort((a,b)=> a.von<b.von?-1:1);
+
+  function dayOffset(iso){
+    const d = new Date(iso+'T00:00:00');
+    return Math.round((d-start)/86400000);
+  }
+
+  const weekMarks = [];
+  for(let i=0;i<=windowDays;i+=7){
+    const d = new Date(start); d.setDate(d.getDate()+i);
+    weekMarks.push({ offset:i, label: d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit'}) });
+  }
+
+  const rows = rentals.map(v=>{
+    const from = Math.max(0, dayOffset(v.von));
+    const to = Math.min(windowDays, dayOffset(v.bis)+1);
+    if(to<=0 || from>=windowDays) return '';
+    const leftPct = (from/windowDays)*100;
+    const widthPct = Math.max(1.5, ((to-from)/windowDays)*100);
+    return `
+      <div class="timeline-row">
+        <div class="timeline-label">
+          <span class="ic-title">${esc(v.kunde)}</span>
+          <span class="field-hint" style="margin:0;">${fmtDate(v.von)} – ${fmtDate(v.bis)}</span>
+        </div>
+        <div class="timeline-track">
+          <button class="timeline-bar ${rentalStatusPill(v.status)}" style="left:${leftPct}%;width:${widthPct}%;" data-action="open-rental" data-id="${v.id}" title="${esc(v.kunde)}"></button>
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    <p class="field-hint" style="margin-bottom:14px;">${t('timeline_hint',{n:windowDays})}</p>
+    <div class="timeline-ruler">
+      ${weekMarks.map(w=>`<span class="timeline-mark" style="left:${(w.offset/windowDays)*100}%;">${esc(w.label)}</span>`).join('')}
+    </div>
+    <div class="timeline-body">
+      ${rows.trim() ? rows : `<div class="empty-state">${ICONS.empty}<p>${t('empty_timeline')}</p></div>`}
+    </div>
+  `;
+}
+
+/* ---------- raw data explorer ---------- */
+
+function itemsAsTextClient(items){ return items.map(it=>`${it.inv} x${it.menge}`).join('; '); }
+
+function dataExplorerSheet(){
+  function formatCell(v){
+    if(v===null||v===undefined) return '';
+    if(typeof v==='object') return JSON.stringify(v);
+    if(typeof v==='boolean') return v?'true':'false';
+    return String(v);
+  }
+  function rawTable(title, rows, columns){
+    return `
+      <div class="section-head"><h2>${esc(title)} (${rows.length})</h2></div>
+      ${rows.length ? `
+        <div class="raw-table-wrap">
+          <table class="raw-table">
+            <thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${rows.map(r=>`<tr>${columns.map(c=>`<td>${esc(formatCell(r[c]))}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : `<p class="field-hint">${t('explorer_empty')}</p>`}
+    `;
+  }
+
+  return `
+    <p class="field-hint" style="margin-bottom:16px;">${t('explorer_intro')}</p>
+    ${rawTable(t('tab_inventar'), state.inventar, ['inv','cat','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','foto'])}
+    ${rawTable(t('tab_vermietungen'), state.vermietungen.map(v=>({...v, items:itemsAsTextClient(v.items), pack:JSON.stringify(v.pack)})), ['id','kunde','customer_id','von','bis','status','items','pack'])}
+    ${rawTable(t('nav_customers'), state.customers, ['id','name','firma','email','telefon','adresse','notiz','created_at'])}
+    ${rawTable(t('nav_bundles'), state.bundles.map(b=>({...b, items:itemsAsTextClient(b.items)})), ['id','name','notiz','suggestedPrice','items'])}
+    ${rawTable(t('cat_title'), state.categories, ['id','code','name','parent'])}
+    ${rawTable(t('standorte_title'), state.standorte.map(name=>({name})), ['name'])}
+    ${rawTable(t('thresh_title'), Object.entries(state.schwellen).map(([key,value])=>({key,value})), ['key','value'])}
   `;
 }
 
@@ -1183,8 +1748,8 @@ function onClick(e){
       doSaveNewItem(); break;
     case 'toggle-rental-item': {
       const d = ui.newRentalDraft; const inv = t2.dataset.inv;
-      const idx = d.items.indexOf(inv);
-      if(idx>=0) d.items.splice(idx,1); else d.items.push(inv);
+      const idx = d.items.findIndex(x=>x.inv===inv);
+      if(idx>=0) d.items.splice(idx,1); else d.items.push({inv, menge:1});
       render(); break;
     }
     case 'save-new-rental':
@@ -1205,6 +1770,18 @@ function onClick(e){
     case 'export-pdf': {
       const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
       exportPackingListPdf(v);
+      break;
+    }
+    case 'export-invoice': {
+      const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+      exportInvoicePdf(v);
+      break;
+    }
+    case 'remove-item-photo': {
+      const item = byInv(t2.dataset.inv);
+      if(item) item.foto = '';
+      render();
+      api('DELETE', `/api/inventar/${encodeURIComponent(t2.dataset.inv)}/photo`).catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
     case 'toggle-cat-expand':
@@ -1229,6 +1806,60 @@ function onClick(e){
     }
     case 'set-lang':
       ui.lang = t2.dataset.val; localStorage.setItem('fundus-lang', ui.lang); render(); break;
+    case 'open-customers':
+      pushSheet({type:'customers'}); break;
+    case 'open-customer':
+      pushSheet({type:'customer', id:t2.dataset.id}); break;
+    case 'open-new-customer':
+      ui.newCustomerDraft=null; pushSheet({type:'new-customer'}); break;
+    case 'save-new-customer':
+      doSaveNewCustomer(); break;
+    case 'delete-customer':
+      doDeleteCustomer(t2.dataset.id); break;
+    case 'open-bundles':
+      pushSheet({type:'bundles'}); break;
+    case 'open-timeline':
+      pushSheet({type:'timeline'}); break;
+    case 'open-stats':
+      pushSheet({type:'stats'}); break;
+    case 'toggle-select-mode':
+      ui.selectMode = !ui.selectMode;
+      if(!ui.selectMode) ui.selectedInv = new Set();
+      render(); break;
+    case 'toggle-select-item': {
+      const inv = t2.dataset.inv;
+      if(ui.selectedInv.has(inv)) ui.selectedInv.delete(inv); else ui.selectedInv.add(inv);
+      render(); break;
+    }
+    case 'bulk-add-to-rental': {
+      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
+      ui.selectMode = false; ui.selectedInv = new Set();
+      ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items };
+      openSheet({type:'new-rental'});
+      break;
+    }
+    case 'bulk-save-as-set': {
+      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
+      ui.selectMode = false; ui.selectedInv = new Set();
+      ui.newBundleDraft = { name:'', notiz:'', suggestedPrice:'', items };
+      openSheet({type:'new-bundle'});
+      break;
+    }
+    case 'open-bundle':
+      pushSheet({type:'bundle', id:t2.dataset.id}); break;
+    case 'remove-bundle-item': {
+      const b = state.bundles.find(x=>x.id===t2.dataset.id);
+      b.items = b.items.filter(it=>it.inv!==t2.dataset.inv);
+      render();
+      api('PATCH', `/api/bundles/${b.id}`, {items:b.items}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'delete-bundle':
+      doDeleteBundle(t2.dataset.id); break;
+    case 'save-new-bundle':
+      doSaveNewBundle(); break;
+    case 'open-data-explorer':
+      pushSheet({type:'data-explorer'}); break;
   }
 }
 
@@ -1239,10 +1870,23 @@ function onChange(e){
   if(action==='edit-item'){
     const item = byInv(t2.dataset.inv);
     const field = t2.dataset.field;
-    const value = t2.type==='checkbox' ? t2.checked : t2.value;
+    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : t2.value);
     item[field] = value;
-    if(field==='status') render();
+    if(field==='status' || field==='menge') render();
     api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {[field]: value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='upload-item-photo'){
+    const inv = t2.dataset.inv;
+    const file = t2.files && t2.files[0];
+    if(!file) return;
+    resizeImageToDataUrl(file, 320, 0.72).then(dataUrl=>{
+      return api('POST', `/api/inventar/${encodeURIComponent(inv)}/photo`, {dataUrl});
+    }).then(updated=>{
+      const item = byInv(inv);
+      if(item) item.foto = updated.foto;
+      render();
+    }).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
   if(action==='draft-item'){
@@ -1255,11 +1899,81 @@ function onChange(e){
   if(action==='draft-rental'){
     const field = t2.dataset.field;
     ui.newRentalDraft[field] = t2.value;
-    if(field==='von' || field==='bis') render();
+    if(field==='kunde') ui.newRentalDraft.customerId = null;
+    render();
+    return;
+  }
+  if(action==='pick-rental-customer'){
+    const d = ui.newRentalDraft;
+    const id = t2.value;
+    if(id){ const c = state.customers.find(x=>x.id===id); d.customerId=id; d.kunde=c.name; }
+    else { d.customerId=null; }
+    render();
+    return;
+  }
+  if(action==='draft-customer'){
+    ui.newCustomerDraft[t2.dataset.field] = t2.value;
+    if(t2.dataset.field==='name') render();
+    return;
+  }
+  if(action==='edit-customer'){
+    const c = state.customers.find(x=>x.id===t2.dataset.id);
+    c[t2.dataset.field] = t2.value;
+    api('PATCH', `/api/customers/${c.id}`, {[t2.dataset.field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='add-bundle-to-rental'){
+    const bundleId = t2.value;
+    if(!bundleId) return;
+    const b = state.bundles.find(x=>x.id===bundleId);
+    const d = ui.newRentalDraft;
+    b.items.forEach(bi=>{
+      const item = byInv(bi.inv);
+      if(!item) return;
+      const existing = d.items.find(x=>x.inv===bi.inv);
+      if(existing) existing.menge = Math.min(item.menge, existing.menge + bi.menge);
+      else d.items.push({inv:bi.inv, menge:Math.min(item.menge, bi.menge)});
+    });
+    d.lastBundleHint = b.suggestedPrice!=null ? t('bundle_price_hint',{name:b.name, price:fmtEuro(b.suggestedPrice)}) : '';
+    render();
+    return;
+  }
+  if(action==='edit-bundle'){
+    const b = state.bundles.find(x=>x.id===t2.dataset.id);
+    const field = t2.dataset.field;
+    const value = field==='suggestedPrice' ? (t2.value===''?null:parseFloat(t2.value)) : t2.value;
+    b[field] = value;
+    api('PATCH', `/api/bundles/${b.id}`, {[field]: value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='draft-bundle'){
+    const d = ui.newBundleDraft;
+    d[t2.dataset.field] = t2.value;
+    if(t2.dataset.field==='name') render();
+    return;
+  }
+  if(action==='set-bundle-draft-qty'){
+    const d = ui.newBundleDraft;
+    const entry = d.items.find(x=>x.inv===t2.dataset.inv);
+    if(entry){
+      const item = byInv(t2.dataset.inv);
+      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
+      render();
+    }
     return;
   }
   if(action==='draft-return'){
     ui.returnDraft[t2.dataset.inv] = t2.value; return;
+  }
+  if(action==='set-rental-item-qty'){
+    const d = ui.newRentalDraft;
+    const entry = d.items.find(x=>x.inv===t2.dataset.inv);
+    if(entry){
+      const item = byInv(t2.dataset.inv);
+      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
+      render();
+    }
+    return;
   }
   if(action==='edit-cat-name'){
     const node = catNode(t2.dataset.id);
@@ -1296,7 +2010,8 @@ async function doSaveNewItem(){
   const item = {
     inv:d.inv, cat:d.cat, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
     standort:d.standort, parent:null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
-    pruef:!!d.pruef, letzte:d.letzte||null, naechste, notiz:d.notiz||''
+    pruef:!!d.pruef, letzte:d.letzte||null, naechste, notiz:d.notiz||'',
+    menge:Math.max(1, parseInt(d.menge,10)||1), foto:''
   };
   state.inventar.push(item);
   closeSheets();
@@ -1314,17 +2029,39 @@ function addMonths(iso,months){
   return d.toISOString().slice(0,10);
 }
 
+// Item photos are meant to stay tiny (a quick visual reminder, not a
+// gallery), so every upload is downscaled client-side before it ever
+// touches the network or disk.
+function resizeImageToDataUrl(file, maxDim, quality){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => { img.onerror = reject; img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width*scale));
+      const h = Math.max(1, Math.round(img.height*scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    }; img.src = reader.result; };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function doSaveNewRental(){
   const d = ui.newRentalDraft;
   if(!d.kunde || !d.items.length) return;
   const kunde = d.kunde;
-  const items = [...d.items];
+  const customerId = d.customerId || null;
+  const items = d.items.map(it=>({...it}));
   closeSheets();
   showToast(t('toast_rental_created',{kunde}));
   try {
-    const v = await api('POST', '/api/vermietungen', {kunde, von:d.von, bis:d.bis, items});
+    const v = await api('POST', '/api/vermietungen', {kunde, customerId, von:d.von, bis:d.bis, items});
     state.vermietungen.push(v);
-    items.forEach(inv=>{ const it=byInv(inv); if(it) it.status='Reserviert'; });
+    items.forEach(({inv})=>{ const it=byInv(inv); if(it && it.menge<=1) it.status='Reserviert'; });
     render();
   } catch(e){
     showToast(t('toast_sync_failed'));
@@ -1335,7 +2072,7 @@ async function doSaveNewRental(){
 async function doRentalStart(id){
   const v = state.vermietungen.find(x=>x.id===id);
   v.status='Aktiv';
-  v.items.forEach(inv=>{ const it=byInv(inv); if(it) it.status='Vermietet'; });
+  v.items.forEach(({inv})=>{ const it=byInv(inv); if(it && it.menge<=1) it.status='Vermietet'; });
   showToast(t('toast_handed_out'));
   render();
   try { await api('POST', `/api/vermietungen/${id}/start`); }
@@ -1345,13 +2082,55 @@ async function doRentalStart(id){
 async function doConfirmReturn(id){
   const v = state.vermietungen.find(x=>x.id===id);
   const d = ui.returnDraft;
-  v.items.forEach(inv=>{ const it=byInv(inv); if(it) it.status = d[inv] || 'Verfügbar'; });
+  v.items.forEach(({inv})=>{ const it=byInv(inv); if(it && it.menge<=1) it.status = d[inv] || 'Verfügbar'; });
   v.status='Abgeschlossen';
   ui.returnDraft=null;
   closeSheets();
   showToast(t('toast_return_done'));
   try { await api('POST', `/api/vermietungen/${id}/return`, {statuses:d}); }
   catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doSaveNewCustomer(){
+  const d = ui.newCustomerDraft;
+  if(!d.name || !d.name.trim()) return;
+  popSheet();
+  showToast(t('toast_customer_created',{name:d.name}));
+  try {
+    const c = await api('POST', '/api/customers', d);
+    state.customers.push(c);
+    ui.newCustomerDraft = null;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doDeleteCustomer(id){
+  state.customers = state.customers.filter(c=>c.id!==id);
+  state.vermietungen.forEach(v=>{ if(v.customer_id===id) v.customer_id=null; });
+  popSheet();
+  showToast(t('toast_customer_deleted'));
+  try { await api('DELETE', `/api/customers/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doSaveNewBundle(){
+  const d = ui.newBundleDraft;
+  if(!d.name || !d.name.trim() || !d.items.length) return;
+  closeSheets();
+  showToast(t('toast_bundle_created',{name:d.name}));
+  try {
+    const b = await api('POST', '/api/bundles', {
+      name: d.name, notiz: d.notiz, suggestedPrice: d.suggestedPrice===''?null:parseFloat(d.suggestedPrice), items: d.items
+    });
+    state.bundles.push(b);
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doDeleteBundle(id){
+  state.bundles = state.bundles.filter(b=>b.id!==id);
+  popSheet();
+  showToast(t('toast_bundle_deleted'));
+  try { await api('DELETE', `/api/bundles/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
 }
 
 async function doAddRootCat(){
