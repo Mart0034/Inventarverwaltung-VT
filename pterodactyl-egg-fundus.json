@@ -13,7 +13,7 @@
         "Node 22 (Debian slim)": "node:22-slim"
     },
     "file_denylist": [],
-    "startup": "PORT={{SERVER_PORT}} node server/index.js",
+    "startup": "node index.js",
     "config": {
         "files": "{}",
         "startup": "{\r\n    \"done\": \"Fundus l\\u00e4uft auf\"\r\n}",

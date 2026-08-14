@@ -194,7 +194,7 @@ app.get(/^(?!\/api\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || process.env.SERVER_PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Fundus läuft auf http://localhost:${PORT}`);
 });

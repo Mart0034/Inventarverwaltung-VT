@@ -1,5 +1,6 @@
 
-const TODAY = new Date('2026-08-13T09:00:00');
+const TODAY = new Date();
+TODAY.setHours(0,0,0,0);
 
 const ICONS = {
   grid:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.6"/><rect x="13" y="3" width="8" height="8" rx="1.6"/><rect x="3" y="13" width="8" height="8" rx="1.6"/><rect x="13" y="13" width="8" height="8" rx="1.6"/></svg>',
@@ -73,6 +74,9 @@ const STRINGS = {
     label_period:'Zeitraum', label_articles:'Artikel', btn_open_packlist:'Packliste öffnen',
     btn_mark_handed_out:'Als ausgegeben markieren', btn_record_return:'Rücknahme erfassen',
     packed_of:'{n} / {m} eingepackt',
+    btn_export_pdf:'Als PDF exportieren',
+    toast_popup_blocked:'Popup blockiert – bitte Popups für diese Seite erlauben',
+    pdf_days:'Tage',
     return_intro:'Zustand je Artikel bei Rückgabe festlegen.', btn_complete_return:'Rücknahme abschließen',
     toast_need_inv_bez:'Bitte Inventarnummer und Bezeichnung angeben',
     toast_dup_inv:'Inventarnummer {inv} existiert bereits',
@@ -141,6 +145,9 @@ const STRINGS = {
     label_period:'Period', label_articles:'Items', btn_open_packlist:'Open packing list',
     btn_mark_handed_out:'Mark as handed out', btn_record_return:'Record return',
     packed_of:'{n} / {m} packed',
+    btn_export_pdf:'Export as PDF',
+    toast_popup_blocked:'Popup blocked – please allow popups for this site',
+    pdf_days:'days',
     return_intro:'Set the condition of each item on return.', btn_complete_return:'Complete return',
     toast_need_inv_bez:'Please enter an inventory number and name',
     toast_dup_inv:'Inventory number {inv} already exists',
@@ -198,8 +205,10 @@ async function loadState(){
   render();
 }
 
+let lastSheetKey = null;
+
 let ui = {
-  tab:'start', sheetStack:[], search:'', fStatus:null, fCat:null, toast:null,
+  tab:'start', sheetStack:[], search:'', fStatus:null, toast:null,
   newItemDraft:null, newRentalDraft:null, returnDraft:null,
   expandedCats: new Set(),
   lang: localStorage.getItem('fundus-lang') || 'de',
@@ -291,7 +300,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;
 function openSheet(s){ ui.sheetStack = [s]; render(); }
 function pushSheet(s){ ui.sheetStack.push(s); render(); }
 function popSheet(){ ui.sheetStack.pop(); render(); }
-function closeSheets(){ ui.sheetStack = []; ui.newItemDraft=null; ui.newRentalDraft=null; ui.returnDraft=null; render(); }
+function closeSheets(){ ui.sheetStack = []; ui.newItemDraft=null; ui.newRentalDraft=null; ui.returnDraft=null; lastSheetKey = null; render(); }
 function topSheet(){ return ui.sheetStack[ui.sheetStack.length-1] || null; }
 
 /* ---------- render ---------- */
@@ -421,18 +430,38 @@ function itemCard(i, showPruef){
     </button>`;
 }
 
+function countItemsUnderStatus(id, statusFilter){
+  const ids = new Set(descendantCatIds(id));
+  return state.inventar.filter(i=>ids.has(i.cat) && (!statusFilter || i.status===statusFilter)).length;
+}
+
+function renderInventarCatNode(node, depth, statusFilter){
+  const children = catChildren(node.id);
+  const directItems = state.inventar.filter(i=>i.cat===node.id && (!statusFilter || i.status===statusFilter));
+  const totalCount = countItemsUnderStatus(node.id, statusFilter);
+  if(totalCount===0) return '';
+  const expanded = ui.expandedCats.has(node.id);
+  return `
+    <div class="cat-node" style="margin-left:${depth*10}px;">
+      <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
+        ${expanded?ICONS.chevDown:ICONS.chevRight}
+        <span class="cat-code mono">${esc(node.code)}</span>
+        <span class="cat-name">${esc(node.name)}</span>
+        <span class="cat-count">${totalCount}</span>
+      </button>
+      ${expanded ? `
+        <div class="cat-children">
+          ${directItems.map(i=>itemCard(i,false)).join('')}
+          ${children.map(c=>renderInventarCatNode(c,depth+1,statusFilter)).join('')}
+        </div>
+      ` : ''}
+    </div>`;
+}
+
 function screenInventar(){
   const q = ui.search.trim().toLowerCase();
-  let items = state.inventar.filter(i=>{
-    if(ui.fStatus && i.status!==ui.fStatus) return false;
-    if(ui.fCat && catRootOf(i.cat)!==ui.fCat) return false;
-    if(!q) return true;
-    return [i.inv,i.bez,i.hersteller,i.modell,i.serien,i.standort].join(' ').toLowerCase().includes(q);
-  });
   const statuses = ['Verfügbar','Reserviert','Vermietet','Defekt','In Reparatur'];
-  return `
-    <h1 class="page-title">${t('title_inventar')}</h1>
-    <p class="page-sub">${t('inv_sub',{n:items.length,m:state.inventar.length})}</p>
+  const searchBar = `
     <div class="search-wrap">
       ${ICONS.search}
       <input id="search-input" class="search-input" type="text" placeholder="${t('search_placeholder')}" value="${esc(ui.search)}" />
@@ -441,12 +470,30 @@ function screenInventar(){
       <button class="chip ${!ui.fStatus?'active':''}" data-action="filter-status" data-val="">${t('chip_all')}</button>
       ${statuses.map(s=>`<button class="chip ${ui.fStatus===s?'active':''}" data-action="filter-status" data-val="${s}">${statusLabel(s)}</button>`).join('')}
     </div>
-    <div class="chip-row">
-      <button class="chip ${!ui.fCat?'active':''}" data-action="filter-cat" data-val="">${t('chip_all_groups')}</button>
-      ${catRoots().map(r=>`<button class="chip ${ui.fCat===r.id?'active':''}" data-action="filter-cat" data-val="${r.id}">${esc(r.name)}</button>`).join('')}
-    </div>
-    <div class="card-list">
-      ${items.length? items.map(i=>itemCard(i,false)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
+  `;
+
+  if(q){
+    const items = state.inventar.filter(i=>{
+      if(ui.fStatus && i.status!==ui.fStatus) return false;
+      return [i.inv,i.bez,i.hersteller,i.modell,i.serien,i.standort].join(' ').toLowerCase().includes(q);
+    });
+    return `
+      <h1 class="page-title">${t('title_inventar')}</h1>
+      <p class="page-sub">${t('inv_sub',{n:items.length,m:state.inventar.length})}</p>
+      ${searchBar}
+      <div class="card-list">
+        ${items.length? items.map(i=>itemCard(i,false)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
+      </div>
+    `;
+  }
+
+  const filteredTotal = state.inventar.filter(i=> !ui.fStatus || i.status===ui.fStatus).length;
+  return `
+    <h1 class="page-title">${t('title_inventar')}</h1>
+    <p class="page-sub">${t('inv_sub',{n:filteredTotal,m:state.inventar.length})}</p>
+    ${searchBar}
+    <div class="cat-tree">
+      ${filteredTotal? catRoots().map(r=>renderInventarCatNode(r,0,ui.fStatus)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
     </div>
   `;
 }
@@ -650,9 +697,12 @@ function sheetOverlay(){
   else if(s.type==='pick-category'){ title = t('sheet_pick_category'); body = pickCategorySheet(s); }
 
   const canBack = ui.sheetStack.length>1;
+  const key = s.type+':'+(s.id||s.inv||s.for||'');
+  const isNew = key!==lastSheetKey;
+  lastSheetKey = key;
   return `
     <div class="sheet-overlay" data-action="close-sheet-bg">
-      <div class="sheet" data-stop="1">
+      <div class="sheet ${isNew?'sheet-enter':''}" data-stop="1">
         <div class="sheet-head">
           ${canBack? `<button class="sheet-back" data-action="back-sheet">${ICONS.back}</button>` : ''}
           <div style="flex:1;min-width:0;">
@@ -868,6 +918,7 @@ function packlistSheet(v){
   const checkedCount = Object.values(v.pack).filter(Boolean).length;
   return `
     <p class="page-sub" style="margin-bottom:10px;">${esc(v.kunde)} · ${fmtDate(v.von)} – ${fmtDate(v.bis)}</p>
+    <button class="btn btn-secondary" data-action="export-pdf" data-id="${v.id}" style="margin-bottom:14px;">${t('btn_export_pdf')}</button>
     <div class="card-list" style="margin-bottom:6px;">
       ${v.items.map(inv=>{ const it=byInv(inv); if(!it) return ''; const done = !!v.pack[inv]; return `
         <div class="pack-row ${done?'checked':''}" data-action="toggle-pack" data-id="${v.id}" data-inv="${inv}">
@@ -880,6 +931,75 @@ function packlistSheet(v){
     </div>
     <p class="field-hint">${t('packed_of',{n:checkedCount,m:v.items.length})}</p>
   `;
+}
+
+function exportPackingListPdf(v){
+  const days = rentalDays(v.von,v.bis);
+  const todayIso = new Date().toISOString().slice(0,10);
+  const rows = v.items.map(inv=>{
+    const it = byInv(inv);
+    if(!it) return '';
+    const done = !!v.pack[inv];
+    return `
+      <tr>
+        <td class="chk"><span class="box ${done?'checked':''}"></span></td>
+        <td class="mono">${esc(it.inv)}</td>
+        <td>${esc(it.bez)}</td>
+        <td class="mono">${esc(it.serien)||'–'}</td>
+      </tr>`;
+  }).join('');
+
+  const html = `<!doctype html>
+<html lang="${ui.lang}">
+<head>
+<meta charset="utf-8">
+<title>${esc(t('sheet_packlist'))} – ${esc(v.kunde)}</title>
+<style>
+  @page { margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1c2036; margin: 0; padding: 24px; }
+  h1 { font-size: 21px; margin: 0 0 3px; letter-spacing: -.01em; }
+  .sub { color: #5c6379; font-size: 13px; margin: 0 0 22px; }
+  .meta { display: flex; gap: 36px; margin-bottom: 22px; }
+  .meta div span { display:block; color:#5c6379; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .meta div b { font-size: 13.5px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; border-bottom: 2px solid #1c2036; padding: 8px 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color:#5c6379; font-weight: 600; }
+  td { padding: 10px 6px; border-bottom: 1px solid #dadfea; vertical-align: middle; }
+  td.mono, th.mono { font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
+  td.chk, th.chk { width: 26px; }
+  .box { display:inline-block; width:13px; height:13px; border:1.6px solid #1c2036; border-radius:3px; }
+  .box.checked { background:#364786; border-color:#364786; }
+  footer { margin-top: 26px; font-size: 10.5px; color: #9aa1b5; }
+</style>
+</head>
+<body>
+  <h1>${esc(t('sheet_packlist'))}</h1>
+  <p class="sub">${esc(v.kunde)}</p>
+  <div class="meta">
+    <div><span>${esc(t('field_kunde'))}</span><b>${esc(v.kunde)}</b></div>
+    <div><span>${esc(t('label_period'))}</span><b>${fmtDate(v.von)} – ${fmtDate(v.bis)} (${days} ${esc(t('pdf_days'))})</b></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th class="chk"></th>
+      <th class="mono">${esc(t('field_invnum'))}</th>
+      <th>${esc(t('field_bez'))}</th>
+      <th>${esc(t('field_serien'))}</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <footer>Fundus · ${fmtDate(todayIso)}</footer>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank');
+  if(!win){ showToast(t('toast_popup_blocked')); return; }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(()=>{ try{ win.print(); }catch(e){} }, 300);
 }
 
 function returnSheet(v){
@@ -974,8 +1094,6 @@ function onClick(e){
       closeSheets(); break;
     case 'filter-status':
       ui.fStatus = t2.dataset.val || null; render(); break;
-    case 'filter-cat':
-      ui.fCat = t2.dataset.val || null; render(); break;
     case 'suggest-inv': {
       const d = ui.newItemDraft;
       d.inv = nextSuggestion(d.cat);
@@ -1002,6 +1120,11 @@ function onClick(e){
       v.pack[inv] = checked;
       render();
       api('PATCH', `/api/vermietungen/${v.id}/pack`, {inv, checked}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'export-pdf': {
+      const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+      exportPackingListPdf(v);
       break;
     }
     case 'toggle-cat-expand':
