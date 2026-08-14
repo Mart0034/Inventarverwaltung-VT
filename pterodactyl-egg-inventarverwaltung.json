@@ -1,11 +1,11 @@
 {
-    "_comment": "Fundus - Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik",
+    "_comment": "Selbst gehostete Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik",
     "meta": {
         "version": "PTDL_v2",
         "update_url": null
     },
     "exported_at": "2026-08-14T00:00:00+00:00",
-    "name": "Fundus (yolks)",
+    "name": "Inventarverwaltung VT (Node 22)",
     "author": "fundus@example.com",
     "description": "Selbst gehostete Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik. Node.js + SQLite, keine externen Dienste.",
     "features": null,
