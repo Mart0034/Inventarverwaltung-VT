@@ -275,7 +275,8 @@ app.get('/api/backup', (req, res) => {
   // -wal file rather than the main database file. Checkpoint first so the
   // exported file is actually complete and self-contained.
   db.pragma('wal_checkpoint(TRUNCATE)');
-  res.download(path.join(db.DATA_DIR, 'fundus.db'));
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.download(path.join(db.DATA_DIR, 'fundus.db'), `fundus-backup-${stamp}.db`);
 });
 
 /* ---- categories ---- */

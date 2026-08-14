@@ -83,6 +83,8 @@ const STRINGS = {
     data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung und durch eine PIN geschützt (siehe „Zugangs-PIN" unten).',
     backup_title:'Datensicherung',
     backup_p:'Tägliches automatisches Backup in ein privates GitHub-Repository, eingerichtet über eine geplante GitHub Action. Dieser Schlüssel schützt den Backup-Zugriff — nur zusammen mit der Action einrichten, nicht öffentlich teilen.',
+    btn_backup_now:'Jetzt sichern',
+    backup_now_hint:'Lädt sofort eine Kopie der Datenbank herunter — z. B. direkt vor einem Server-Update.',
     backup_token_label:'Backup-Schlüssel',
     backup_url_label:'Backup-Adresse',
     field_bez:'Bezeichnung', field_category:'Kategorie', change:'Ändern',
@@ -248,6 +250,8 @@ const STRINGS = {
     data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection and protected by a PIN (see "Access PIN" below).',
     backup_title:'Backups',
     backup_p:'Automatic daily backup to a private GitHub repository, set up via a scheduled GitHub Action. This key protects backup access — set it up together with the Action only, don\'t share it publicly.',
+    btn_backup_now:'Back up now',
+    backup_now_hint:'Downloads a copy of the database immediately — e.g. right before a server update.',
     backup_token_label:'Backup key',
     backup_url_label:'Backup address',
     field_bez:'Name', field_category:'Category', change:'Change',
@@ -1151,6 +1155,8 @@ function screenEinstellungen(){
     <div class="settings-card">
       <h3>${t('backup_title')}</h3>
       <p class="field-hint" style="margin-bottom:10px;">${t('backup_p')}</p>
+      <a class="tool-btn" href="/api/backup?token=${encodeURIComponent(state.backupToken||'')}">${t('btn_backup_now')}</a>
+      <p class="field-hint" style="margin-top:8px;margin-bottom:10px;">${t('backup_now_hint')}</p>
       <div class="field">
         <label>${t('backup_url_label')}</label>
         <input type="text" class="mono" readonly value="${esc(backupUrl())}" onclick="this.select()" />
