@@ -33,7 +33,7 @@ const STRINGS = {
     due_inspections:'Fällige Prüfungen', view_all:'Alle ansehen',
     empty_inspections:'Keine anstehenden Prüfungen.',
     quick_actions:'Schnellzugriff',
-    quick_search:'Inventar durchsuchen', quick_new_item:'Neues Inventar', quick_new_rental:'Neue Vermietung', quick_settings:'Einstellungen',
+    quick_search:'Inventar durchsuchen', quick_new_item:'Neues Item', quick_new_rental:'Neue Vermietung', quick_settings:'Einstellungen',
     inv_sub:'{n} von {m} Artikeln',
     search_placeholder:'Suche nach Inventarnummer, Bezeichnung, Hersteller …',
     chip_all:'Alle', chip_all_groups:'Alle Gruppen',
@@ -99,7 +99,7 @@ const STRINGS = {
     already_in_case:'Bereits eingepackt', sheet_pick_flightcase:'Flightcase wählen',
     section_pruef:'Prüfung', field_letzte:'Letzte Prüfung', field_naechste:'Nächste Prüfung',
     field_notiz:'Bemerkungen',
-    sheet_new_item:'Neues Inventar', sheet_new_rental:'Neue Vermietung', sheet_return:'Rücknahme', sheet_packlist:'Packliste', sheet_pick_category:'Kategorie wählen',
+    sheet_new_item:'Neues Item', sheet_new_rental:'Neue Vermietung', sheet_return:'Rücknahme', sheet_packlist:'Packliste', sheet_pick_category:'Kategorie wählen',
     field_invnum:'Inventarnummer', invnum_placeholder:'z. B. 004.02.001', suggest:'Vorschlagen',
     invnum_hint:'Bestehende Nummer übernehmen oder automatisch vorschlagen lassen — Format bleibt immer HHH.UU.LLL.',
     bez_placeholder:'z. B. Moving Head Beam 230',
@@ -113,7 +113,7 @@ const STRINGS = {
     available_of:'{n} von {m} verfügbar',
     field_menge:'Bestand (Stückzahl)',
     bulk_return_note:'Sammelartikel — Bestand wird automatisch wieder freigegeben.',
-    field_photo:'Foto', add_photo:'Foto hinzufügen', remove_photo:'Foto entfernen',
+    field_photo:'Foto', add_photo:'Aus Galerie', take_photo:'Foto aufnehmen', remove_photo:'Foto entfernen',
     field_attachments:'Dateien', add_file:'Datei hinzufügen', remove_file:'Entfernen',
     files_empty:'Keine Dateien angehängt.', toast_file_too_large:'„{name}" ist zu groß (max. 8 MB).',
     nav_timeline:'Zeitleiste', nav_customers:'Kunden', nav_bundles:'Sets', nav_stats:'Statistik',
@@ -202,6 +202,8 @@ const STRINGS = {
     field_code:'Code',
     hersteller_title:'Hersteller', hersteller_placeholder:'Neuer Hersteller …',
     hersteller_p:'Vorschlagsliste für das Hersteller-Feld beim Anlegen eines Artikels. Freitext bleibt weiterhin möglich.',
+    cases_root_title:'Ort / Flightcase-Kategorie',
+    cases_root_p:'Welche Hauptgruppe als „Ort" (Flightcase-Zuordnung) verwendet wird — nur Artikel in dieser Gruppe (und ihren Unterkategorien) lassen sich als Flightcase auswählen.',
   },
   en: {
     tab_start:'Home', tab_inventar:'Inventory', tab_pruefungen:'Checks', tab_vermietungen:'Rentals', tab_mehr:'More',
@@ -294,7 +296,7 @@ const STRINGS = {
     available_of:'{n} of {m} available',
     field_menge:'Stock (quantity)',
     bulk_return_note:'Bulk item — stock is freed automatically again.',
-    field_photo:'Photo', add_photo:'Add photo', remove_photo:'Remove photo',
+    field_photo:'Photo', add_photo:'From gallery', take_photo:'Take photo', remove_photo:'Remove photo',
     field_attachments:'Files', add_file:'Add file', remove_file:'Remove',
     files_empty:'No files attached.', toast_file_too_large:'"{name}" is too large (max 8 MB).',
     nav_timeline:'Timeline', nav_customers:'Customers', nav_bundles:'Sets', nav_stats:'Stats',
@@ -383,6 +385,8 @@ const STRINGS = {
     field_code:'Code',
     hersteller_title:'Manufacturers', hersteller_placeholder:'New manufacturer …',
     hersteller_p:'Suggestion list for the Manufacturer field when creating an item. Free text is still possible.',
+    cases_root_title:'Flightcase category',
+    cases_root_p:'Which top-level category is used for "Flightcase" assignment — only items in this group (and its subcategories) can be picked as a flightcase.',
   }
 };
 
@@ -440,8 +444,9 @@ let lastRenderedTab = null;
 let ui = {
   tab:'start', sheetStack:[], search:'', fStatus:null, toast:null,
   newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
-  selectMode:false, selectedInv: new Set(), selectedQty: {},
+  selectMode:false, selectedInv: new Set(),
   expandedCats: new Set(),
+  expandedPickCats: new Set(),
   expandedSettingsCats: new Set(),
   expandedTestTypes: new Set(),
   showArchived:false, rentalSort:'date', explorerSort:{},
@@ -466,9 +471,18 @@ function catPathNames(id){ return catPath(id).map(n=>n.name).join(' › '); }
 function catPathCodes(id){ return catPath(id).map(n=>n.code).join('.'); }
 function catRootOf(id){ const p=catPath(id); return p.length ? p[0].id : null; }
 function descendantCatIds(id){ const out=[id]; catChildren(id).forEach(c=>out.push(...descendantCatIds(c.id))); return out; }
-// Cases & Transport (category code 006) and its subcategories -- items filed
-// there are flightcases/rackcases, which is where a nickname is useful.
-function casesRootCat(){ return catRoots().find(r=>r.code==='006') || null; }
+// Cases & Transport and its subcategories -- items filed there are
+// flightcases/rackcases, which is where a nickname is useful. Which
+// Hauptgruppe this points to is configurable in Settings (state.casesRootCatId);
+// falls back to whichever top-level category has code "006" (the seeded
+// default) if unset or pointing at something that no longer exists.
+function casesRootCat(){
+  if(state.casesRootCatId){
+    const n = catRoots().find(r=>r.id===state.casesRootCatId);
+    if(n) return n;
+  }
+  return catRoots().find(r=>r.code==='006') || null;
+}
 function isCaseCat(catId){ const root = casesRootCat(); return !!root && descendantCatIds(root.id).includes(catId); }
 function firstLeafDefault(){
   const root = catRoots()[0];
@@ -546,14 +560,6 @@ function overlappingReservationsFor(inv,von,bis,excludeId){
     if(line) out.push({von:v.von, bis:v.bis, menge:line.menge, kunde:v.kunde});
   });
   return out;
-}
-function bookedQtyFor(inv,von,bis,excludeId){
-  return overlappingReservationsFor(inv,von,bis,excludeId).reduce((s,r)=>s+r.menge,0);
-}
-function availableTodayCount(item){
-  if(item.menge<=1) return null;
-  const todayIso = TODAY.toISOString().slice(0,10);
-  return Math.max(0, item.menge - bookedQtyFor(item.inv, todayIso, todayIso, null));
 }
 function selectableItems(){
   return state.inventar.filter(i=>i.status!=='Ausgemustert' && i.status!=='Verloren' && i.status!=='Defekt');
@@ -771,8 +777,6 @@ function itemCard(i, showPruef, selectable){
   if(i.tag) metaBits.push(esc(tagLabel(i.tag)));
   if(caseItem) metaBits.push(t('in_case_short',{inv:caseItem.inv}));
   const metaLine = showPruef && ps ? pruefLabel(i) : metaBits.join(' · ');
-  const bulk = i.menge > 1;
-  const avail = bulk ? availableTodayCount(i) : null;
   const pill = showPruef && ps
     ? `<span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span>`
     : contentCount>0
@@ -781,8 +785,6 @@ function itemCard(i, showPruef, selectable){
           <span class="pill pill-off">${t('contains_short',{n:contentCount})}</span>
           <span class="pill ${ca.cls}">${ca.label}</span>
         </span>`; })()
-      : bulk
-      ? `<span class="pill ${avail>0?'pill-ok':'pill-rented'}">${t('available_of',{n:avail,m:i.menge})}</span>`
       : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
   const thumb = i.foto ? `<img class="ic-thumb" src="/photos/${encodeURIComponent(i.foto)}" alt="" loading="lazy" />` : '';
 
@@ -800,7 +802,6 @@ function itemCard(i, showPruef, selectable){
   }
 
   const selected = ui.selectedInv.has(i.inv);
-  const qty = ui.selectedQty[i.inv] || 1;
   return `
     <div class="item-card ${cls} select-row">
       <button class="pack-check ${selected?'checked':''}" data-action="toggle-select-item" data-inv="${i.inv}" aria-label="${esc(i.bez)}">${selected?ICONS.check:''}</button>
@@ -809,8 +810,6 @@ function itemCard(i, showPruef, selectable){
         <span class="ic-title">${esc(i.bez)}</span>
         <span class="ic-meta">${metaLine}</span>
       </button>
-      ${bulk? `<span class="stock-note">${t('stock_label',{n:i.menge})}</span>` : ''}
-      ${bulk && selected? `<input class="qty-input" type="number" min="1" max="${i.menge}" value="${qty}" data-action="set-select-item-qty" data-inv="${i.inv}" />` : ''}
     </div>`;
 }
 
@@ -844,7 +843,7 @@ function renderInventarCatNode(node, depth, statusFilter){
         <div class="cat-children">
           ${taggedGroups.map(g=>`
             <div class="tag-group">
-              <div class="tag-group-label mono">${esc(catPathCodes(node.id))}.${esc(g.tag.code)} · ${esc(g.tag.name)}</div>
+              <button type="button" class="tag-group-label mono" data-action="open-tag-detail" data-id="${g.tag.id}">${esc(catPathCodes(node.id))}.${esc(g.tag.code)} · ${esc(g.tag.name)}</button>
               ${g.items.map(i=>itemCard(i,false,ui.selectMode)).join('')}
             </div>
           `).join('')}
@@ -1083,12 +1082,12 @@ function renderTestTypeEditor(tt){
 function renderCatSelectNode(node, depth, selectedId){
   const children = catChildren(node.id);
   const hasKids = children.length>0;
-  const expanded = ui.expandedCats.has(node.id);
+  const expanded = ui.expandedPickCats.has(node.id);
   const isSelected = node.id===selectedId;
   return `
     <div class="cat-node" style="margin-left:${depth*16}px;">
       <div class="cat-row ${isSelected?'selected':''}">
-        ${hasKids ? `<button class="cat-toggle" data-action="toggle-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
+        ${hasKids ? `<button class="cat-toggle" data-action="toggle-pick-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
         <button class="cat-label" data-action="pick-cat" data-id="${node.id}">
           <span class="cat-code mono">${esc(node.code)}</span>
           <span>${esc(node.name)}</span>
@@ -1105,10 +1104,7 @@ function renderCatSelectTree(selectedId){
 function rentalItemRow(i,d){
   const entry = d.items.find(x=>x.inv===i.inv);
   const picked = !!entry;
-  const bulk = i.menge > 1;
   const reservations = overlappingReservationsFor(i.inv, d.von, d.bis, null);
-  const bookedQty = reservations.reduce((s,r)=>s+r.menge,0);
-  const availableQty = Math.max(0, i.menge - bookedQty);
   const conflictNote = reservations.length
     ? reservations.map(r=>t('belegt_range',{von:fmtDate(r.von),bis:fmtDate(r.bis)})).join(', ')
     : '';
@@ -1118,9 +1114,8 @@ function rentalItemRow(i,d){
       <button class="ic-body" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;" data-action="toggle-rental-item" data-inv="${i.inv}">
         <span class="inv-num mono">${i.inv}</span>
         <span class="ic-title">${esc(i.bez)}</span>
-        <span class="ic-meta">${fmtEuro(i.miete)}${t('per_day')}${bulk?' · '+t('available_of',{n:availableQty,m:i.menge}):''}</span>
+        <span class="ic-meta">${fmtEuro(i.miete)}${t('per_day')}</span>
       </button>
-      ${bulk && picked ? `<input class="qty-input" type="number" min="1" max="${i.menge}" value="${entry.menge}" data-action="set-rental-item-qty" data-inv="${i.inv}" />` : ''}
       ${conflictNote ? `<span class="conflict-note">${esc(conflictNote)}</span>` : ''}
     </div>`;
 }
@@ -1157,6 +1152,14 @@ function screenEinstellungen(){
       <h3>${t('cat_title')}</h3>
       ${catRoots().map(r=>renderCatEditNode(r,0)).join('')}
       <button class="add-link top" data-action="add-root-cat">${t('add_maincat')}</button>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('cases_root_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('cases_root_p')}</p>
+      <select data-action="set-cases-root-cat">
+        ${catRoots().map(r=>`<option value="${r.id}" ${casesRootCat() && casesRootCat().id===r.id ? 'selected':''}>${esc(r.code)} — ${esc(r.name)}</option>`).join('')}
+      </select>
     </div>
 
     <div class="settings-card">
@@ -1349,10 +1352,16 @@ function itemDetailSheet(i){
           <button class="link-btn" data-action="remove-item-photo" data-inv="${i.inv}">${t('remove_photo')}</button>
         </div>
       ` : `
-        <label class="photo-upload-btn">
-          ${t('add_photo')}
-          <input type="file" accept="image/*" data-action="upload-item-photo" data-inv="${i.inv}" style="display:none;" />
-        </label>
+        <div class="photo-upload-row">
+          <label class="photo-upload-btn">
+            ${t('add_photo')}
+            <input type="file" accept="image/*" data-action="upload-item-photo" data-inv="${i.inv}" style="display:none;" />
+          </label>
+          <label class="photo-upload-btn">
+            ${t('take_photo')}
+            <input type="file" accept="image/*" capture="environment" data-action="upload-item-photo" data-inv="${i.inv}" style="display:none;" />
+          </label>
+        </div>
       `}
     </div>
 
@@ -1397,10 +1406,6 @@ function itemDetailSheet(i){
       <button type="button" class="cat-picker-btn" data-action="open-flightcase-picker" data-inv="${i.inv}">
         <span>${i.parent && byInv(i.parent) ? esc(byInv(i.parent).inv+' – '+byInv(i.parent).bez) : t('opt_no_flightcase')}</span>${ICONS.chevRight}
       </button>
-    </div>
-    <div class="field">
-      <label>${t('field_menge')}</label>
-      <input type="number" min="1" data-action="edit-item" data-field="menge" data-inv="${i.inv}" value="${i.menge}" />
     </div>
     <div class="field">
       <label>${t('field_gewicht')}</label>
@@ -1521,7 +1526,7 @@ function newItemSheet(){
   const d = ui.newItemDraft || (ui.newItemDraft = {
     inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
-    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1, gewicht:'',
+    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', gewicht:'',
     testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[], nickname:''
   });
   const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
@@ -1567,10 +1572,16 @@ function newItemSheet(){
           <button class="link-btn" data-action="remove-draft-photo">${t('remove_photo')}</button>
         </div>
       ` : `
-        <label class="photo-upload-btn">
-          ${t('add_photo')}
-          <input type="file" accept="image/*" data-action="upload-draft-photo" style="display:none;" />
-        </label>
+        <div class="photo-upload-row">
+          <label class="photo-upload-btn">
+            ${t('add_photo')}
+            <input type="file" accept="image/*" data-action="upload-draft-photo" style="display:none;" />
+          </label>
+          <label class="photo-upload-btn">
+            ${t('take_photo')}
+            <input type="file" accept="image/*" capture="environment" data-action="upload-draft-photo" style="display:none;" />
+          </label>
+        </div>
       `}
     </div>
     <div class="field-row">
@@ -1594,11 +1605,10 @@ function newItemSheet(){
           ${state.standorte.map(s=>`<option ${s===d.standort?'selected':''}>${s}</option>`).join('')}
         </select>
       </div>
-      <div class="field"><label>${t('field_menge')}</label><input type="number" min="1" data-action="draft-item" data-field="menge" value="${esc(d.menge)}" /></div>
-    </div>
-    <div class="field">
-      <label>${t('field_gewicht')}</label>
-      <input type="number" min="0" step="1" data-action="draft-item" data-field="gewicht" value="${esc(d.gewicht)}" placeholder="0" />
+      <div class="field">
+        <label>${t('field_gewicht')}</label>
+        <input type="number" min="0" step="1" data-action="draft-item" data-field="gewicht" value="${esc(d.gewicht)}" placeholder="0" />
+      </div>
     </div>
     <div class="field">
       <label>${t('field_status')}</label>
@@ -2361,7 +2371,6 @@ function bundleDetailSheet(b){
             <span class="inv-num mono">${item.inv}</span>
             <span class="ic-title">${esc(item.bez)}</span>
           </div>
-          ${item.menge>1?`<input class="qty-input" type="number" min="1" max="${item.menge}" value="${it.menge}" data-action="set-bundle-item-qty" data-id="${b.id}" data-inv="${it.inv}" />`:''}
           <button class="icon-btn" data-action="remove-bundle-item" data-id="${b.id}" data-inv="${it.inv}">${ICONS.close}</button>
         </div>`; }).join('')}
     </div>
@@ -2390,7 +2399,6 @@ function newBundleSheet(){
             <span class="inv-num mono">${item.inv}</span>
             <span class="ic-title">${esc(item.bez)}</span>
           </div>
-          ${item.menge>1?`<input class="qty-input" type="number" min="1" max="${item.menge}" value="${it.menge}" data-action="set-bundle-draft-qty" data-inv="${it.inv}" />`:''}
           <button class="icon-btn" data-action="remove-bundle-draft-item" data-inv="${it.inv}">${ICONS.close}</button>
         </div>`; }).join('')}
     </div>
@@ -2842,6 +2850,11 @@ function onClick(e){
     }
     case 'toggle-cat-expand':
       toggleCatExpand(t2.dataset.id); render(); break;
+    case 'toggle-pick-cat-expand': {
+      const id = t2.dataset.id;
+      if(ui.expandedPickCats.has(id)) ui.expandedPickCats.delete(id); else ui.expandedPickCats.add(id);
+      render(); break;
+    }
     case 'toggle-settings-cat-expand': {
       const id = t2.dataset.id;
       if(ui.expandedSettingsCats.has(id)) ui.expandedSettingsCats.delete(id); else ui.expandedSettingsCats.add(id);
@@ -2939,24 +2952,24 @@ function onClick(e){
       pushSheet({type:'stats'}); break;
     case 'toggle-select-mode':
       ui.selectMode = !ui.selectMode;
-      if(!ui.selectMode){ ui.selectedInv = new Set(); ui.selectedQty = {}; }
+      if(!ui.selectMode){ ui.selectedInv = new Set(); }
       render(); break;
     case 'toggle-select-item': {
       const inv = t2.dataset.inv;
-      if(ui.selectedInv.has(inv)){ ui.selectedInv.delete(inv); delete ui.selectedQty[inv]; }
-      else { ui.selectedInv.add(inv); ui.selectedQty[inv] = 1; }
+      if(ui.selectedInv.has(inv)){ ui.selectedInv.delete(inv); }
+      else { ui.selectedInv.add(inv); }
       render(); break;
     }
     case 'bulk-add-to-rental': {
-      const items = [...ui.selectedInv].map(inv=>({inv, menge: ui.selectedQty[inv]||1}));
-      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {};
+      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
+      ui.selectMode = false; ui.selectedInv = new Set();
       ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items };
       openSheet({type:'new-rental'});
       break;
     }
     case 'bulk-save-as-set': {
-      const items = [...ui.selectedInv].map(inv=>({inv, menge: ui.selectedQty[inv]||1}));
-      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {};
+      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
+      ui.selectMode = false; ui.selectedInv = new Set();
       ui.newBundleDraft = { name:'', notiz:'', suggestedPrice:'', items };
       openSheet({type:'new-bundle'});
       break;
@@ -3027,7 +3040,7 @@ function onClick(e){
         }
         if(Object.keys(patch).length) api('PATCH', `/api/inventar/${encodeURIComponent(inv)}`, patch).catch(()=>showToast(t('toast_sync_failed')));
       });
-      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {}; ui.bulkEditDraft = null;
+      ui.selectMode = false; ui.selectedInv = new Set(); ui.bulkEditDraft = null;
       closeSheets();
       showToast(t('toast_bulk_edit_done',{n:invs.length}));
       break;
@@ -3099,6 +3112,12 @@ function onChange(e){
     ui.bulkEditDraft[t2.dataset.field] = t2.value;
     return;
   }
+  if(action==='set-cases-root-cat'){
+    state.casesRootCatId = t2.value;
+    api('PATCH', '/api/settings', {casesRootCatId: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    render();
+    return;
+  }
   if(action==='edit-setting'){
     const field = t2.dataset.field;
     state[field] = t2.value;
@@ -3162,27 +3181,6 @@ function onChange(e){
     if(t2.dataset.field==='name') render();
     return;
   }
-  if(action==='set-bundle-draft-qty'){
-    const d = ui.newBundleDraft;
-    const entry = d.items.find(x=>x.inv===t2.dataset.inv);
-    if(entry){
-      const item = byInv(t2.dataset.inv);
-      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
-      render();
-    }
-    return;
-  }
-  if(action==='set-bundle-item-qty'){
-    const b = state.bundles.find(x=>x.id===t2.dataset.id);
-    const entry = b.items.find(x=>x.inv===t2.dataset.inv);
-    if(entry){
-      const item = byInv(t2.dataset.inv);
-      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
-      render();
-      api('PATCH', `/api/bundles/${b.id}`, {items:b.items}).catch(()=>showToast(t('toast_sync_failed')));
-    }
-    return;
-  }
   if(action==='draft-return'){
     ui.returnDraft[t2.dataset.inv] = t2.value; return;
   }
@@ -3205,23 +3203,6 @@ function onChange(e){
         render();
       });
     }), Promise.resolve()).catch(()=>showToast(t('toast_sync_failed')));
-    return;
-  }
-  if(action==='set-select-item-qty'){
-    const inv = t2.dataset.inv;
-    const item = byInv(inv);
-    ui.selectedQty[inv] = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
-    render();
-    return;
-  }
-  if(action==='set-rental-item-qty'){
-    const d = ui.newRentalDraft;
-    const entry = d.items.find(x=>x.inv===t2.dataset.inv);
-    if(entry){
-      const item = byInv(t2.dataset.inv);
-      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
-      render();
-    }
     return;
   }
   if(action==='edit-test-type-name'){
@@ -3286,7 +3267,7 @@ async function doSaveNewItem(){
     inv:d.inv, cat:d.cat, tag:d.tag||null, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
     standort:d.standort, parent:d.flightcase||null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
     pruef:!!d.pruef, letzte:d.letzte||null, naechste, intervall:d.pruef?(parseInt(d.intervall,10)||12):null, notiz:d.notiz||'',
-    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'', files:[], nickname:isCaseCat(d.cat)?(d.nickname||''):'',
+    menge:1, foto:'', files:[], nickname:isCaseCat(d.cat)?(d.nickname||''):'',
     gewicht:Math.max(0, parseInt(d.gewicht,10)||0),
     checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };

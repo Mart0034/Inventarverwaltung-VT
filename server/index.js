@@ -209,7 +209,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag', 'intervall', 'nickname', 'gewicht'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'tag', 'intervall', 'nickname', 'gewicht'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
 // Track-keeping for inventar field changes -- see the audit_log table
@@ -259,9 +259,11 @@ function getFullState() {
   const schwellen = {};
   let pin = '1234';
   let userName = '';
+  let casesRootCatId = '';
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
+    else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
@@ -270,7 +272,7 @@ function getFullState() {
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
   const tags = db.prepare('SELECT * FROM tags').all();
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
@@ -425,16 +427,25 @@ app.patch('/api/settings', (req, res) => {
     upsert.run('pin', req.body.pin);
   }
   if (req.body.userName !== undefined) upsert.run('userName', String(req.body.userName).slice(0, 60));
+  if (req.body.casesRootCatId !== undefined) {
+    const id = String(req.body.casesRootCatId);
+    if (id && !db.prepare('SELECT 1 FROM categories WHERE id = ? AND parent IS NULL').get(id)) {
+      return res.status(400).json({ error: 'casesRootCatId must be an existing top-level category' });
+    }
+    upsert.run('casesRootCatId', id);
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
   let userName = '';
+  let casesRootCatId = '';
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
+    else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
     else schwellen[r.key] = parseInt(r.value, 10);
   });
-  res.json({ ...schwellen, pin, userName });
+  res.json({ ...schwellen, pin, userName, casesRootCatId });
 });
 
 /* ---- inventar ---- */
@@ -453,7 +464,7 @@ app.post('/api/inventar', (req, res) => {
     serien: b.serien || '', standort: b.standort || '', parent: b.parent || null,
     status: b.status || 'Verfügbar', miete: b.miete || 0, pruef: b.pruef ? 1 : 0,
     letzte: b.letzte || null, naechste: b.naechste || null, notiz: b.notiz || '',
-    menge: Math.max(1, parseInt(b.menge, 10) || 1),
+    menge: 1,
     intervall: b.intervall != null ? parseInt(b.intervall, 10) || null : null, nickname: b.nickname || '',
     gewicht: Math.max(0, parseInt(b.gewicht, 10) || 0),
   });

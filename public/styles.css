@@ -252,6 +252,8 @@ button{cursor:pointer;}
   color:var(--text-muted);font-size:.82rem;font-weight:600;
 }
 .photo-upload-btn:hover{color:var(--text);border-color:var(--accent);}
+.photo-upload-row{display:flex;gap:8px;flex-wrap:wrap;}
+.photo-upload-row .photo-upload-btn{flex:1;justify-content:center;min-width:120px;}
 
 .file-list{display:flex;flex-direction:column;gap:6px;}
 .file-row{
@@ -556,7 +558,12 @@ button{cursor:pointer;}
 .cat-move-btn:disabled{opacity:.3;}
 .cat-delete-btn{width:28px;height:28px;border-radius:7px;flex:none;}
 .tag-group{margin-bottom:4px;}
-.tag-group-label{font-size:.66rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:.05em;padding:6px 2px 4px;}
+.tag-group-label{
+  display:inline-flex;align-items:center;gap:6px;margin:6px 0 6px;padding:5px 12px;
+  font-size:.78rem;font-weight:700;letter-spacing:.02em;
+  color:var(--accent-strong);background:var(--surface-2);border:1px solid var(--border);
+  border-radius:100px;cursor:pointer;
+}
 .tag-group .item-card{margin-bottom:6px;}
 .cat-delete-btn svg{width:14px;height:14px;}
 .tag-editor{margin:6px 0 8px;padding:8px 0 0;}
