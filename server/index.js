@@ -166,7 +166,12 @@ const LOGIN_PAGE_HTML = `<!doctype html>
 </html>`;
 
 app.use((req, res, next) => {
-  if (req.path === '/api/login' || req.path === '/api/backup' || req.path.startsWith('/icons/')) {
+  // manifest.json, the service worker, and the icons they point to have to
+  // stay reachable without the access cookie -- the OS/browser fetches them
+  // independently of any logged-in tab (install-time, and again on periodic
+  // re-validation of an already-installed PWA / WebAPK icon refresh on
+  // Android), and none of them contain anything sensitive.
+  if (req.path === '/api/login' || req.path === '/api/backup' || req.path === '/manifest.json' || req.path === '/sw.js' || req.path.startsWith('/icons/')) {
     return next();
   }
   const cookies = parseCookies(req);
