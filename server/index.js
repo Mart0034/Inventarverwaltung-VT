@@ -71,6 +71,12 @@ const ACCESS_COOKIE = 'fundus_access';
 const DEVICE_COOKIE = 'fundus_device';
 const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
 const FIVE_YEARS_MS = ONE_YEAR_MS * 5;
+// How long an unlocked session stays unlocked with no activity. Slides
+// forward on every authenticated request (see the auth gate below), so
+// actively using the app never logs you out mid-task -- only genuine idle
+// time does. Device trust (fundus_device) is untouched by this; a session
+// timing out just drops back to the fast PIN/fingerprint prompt.
+const SESSION_MAX_AGE_MS = 15 * 60 * 1000;
 
 const ACCESS_TOKEN_FILE = path.join(db.DATA_DIR, 'access-token.txt');
 function getOrCreateAccessToken() {
@@ -115,7 +121,7 @@ function trustedDeviceFor(req) {
 }
 function setAccessCookie(req, res) {
   res.cookie(ACCESS_COOKIE, ACCESS_TOKEN, {
-    httpOnly: true, sameSite: 'lax', secure: isRequestHttps(req), maxAge: ONE_YEAR_MS,
+    httpOnly: true, sameSite: 'lax', secure: isRequestHttps(req), maxAge: SESSION_MAX_AGE_MS,
   });
 }
 function touchDevice(id) {
@@ -359,7 +365,13 @@ app.use((req, res, next) => {
     return next();
   }
   const cookies = parseCookies(req);
-  if (cookies[ACCESS_COOKIE] === ACCESS_TOKEN) return next();
+  if (cookies[ACCESS_COOKIE] === ACCESS_TOKEN) {
+    // Sliding session: every authenticated request pushes the cookie's
+    // expiry back out another SESSION_MAX_AGE_MS, so a session only times
+    // out after genuine idle time, not on a fixed clock from login.
+    setAccessCookie(req, res);
+    return next();
+  }
   if (req.path.startsWith('/api/')) {
     return res.status(401).json({ error: 'locked' });
   }
