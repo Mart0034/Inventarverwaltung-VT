@@ -5,6 +5,23 @@ const fs = require('fs');
 const db = require('./db');
 
 const app = express();
+
+// Requests through the Flamegrid reverse proxy arrive over plain HTTP with
+// X-Forwarded-Proto: https set; the underlying port is also reachable
+// directly over plain HTTP, bypassing HTTPS entirely. Redirect any request
+// that looks like that raw, unencrypted path to the real HTTPS domain.
+// Keyed off known production hostnames (not a generic "no forwarded-proto"
+// rule) so local development is completely unaffected.
+const PUBLIC_URL = 'https://fundus.lethalmc.com';
+const INSECURE_HOSTS = ['162.141.166.3:25595', 'fundus.lethalmc.com'];
+app.use((req, res, next) => {
+  const host = req.headers.host || '';
+  if (req.headers['x-forwarded-proto'] !== 'https' && INSECURE_HOSTS.includes(host)) {
+    return res.redirect(301, PUBLIC_URL + req.originalUrl);
+  }
+  next();
+});
+
 app.use(express.json());
 
 const BACKUP_TOKEN_FILE = path.join(db.DATA_DIR, 'backup-token.txt');
