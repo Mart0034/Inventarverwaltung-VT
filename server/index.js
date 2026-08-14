@@ -198,21 +198,29 @@ app.post('/api/logout', (req, res) => {
 });
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
 function catRow(row) {
   return { id: row.id, code: row.code, name: row.name, parent: row.parent };
 }
+function checklistForInv(inv) {
+  return db.prepare('SELECT id, text, checked FROM inventar_checklist WHERE inv = ? ORDER BY sort_order').all(inv)
+    .map(c => ({ id: c.id, text: c.text, checked: !!c.checked }));
+}
 function itemRow(row) {
-  return { ...row, pruef: !!row.pruef, parent: row.parent || null };
+  return { ...row, pruef: !!row.pruef, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv) };
 }
 function rentalRow(row) {
-  return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack) };
+  return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack), archiviert: !!row.archiviert };
 }
 function bundleRow(row) {
   const items = db.prepare('SELECT inv, menge FROM bundle_items WHERE bundle_id = ?').all(row.id);
   return { id: row.id, name: row.name, notiz: row.notiz, suggestedPrice: row.suggested_price, items };
+}
+function testTypeRow(row) {
+  const items = db.prepare('SELECT id, text FROM test_type_items WHERE test_type_id = ? ORDER BY sort_order').all(row.id);
+  return { id: row.id, name: row.name, items };
 }
 
 function getFullState() {
@@ -226,7 +234,9 @@ function getFullState() {
   const vermietungen = db.prepare('SELECT * FROM vermietungen').all().map(rentalRow);
   const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
-  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, inventar, vermietungen, customers, bundles, backupToken: BACKUP_TOKEN };
+  const tags = db.prepare('SELECT * FROM tags').all();
+  const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
+  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
@@ -254,8 +264,12 @@ app.post('/api/categories', (req, res) => {
   const { parent, name } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const parentId = parent || null;
-  if (parentId && !db.prepare('SELECT 1 FROM categories WHERE id = ?').get(parentId)) {
-    return res.status(404).json({ error: 'parent not found' });
+  if (parentId) {
+    const parentRow = db.prepare('SELECT * FROM categories WHERE id = ?').get(parentId);
+    if (!parentRow) return res.status(404).json({ error: 'parent not found' });
+    // Categories are capped at two levels (Hauptgruppe/Untergruppe) -- a
+    // parent that itself has a parent would make this a third level.
+    if (parentRow.parent) return res.status(400).json({ error: 'categories only support two levels' });
   }
   const siblings = db.prepare('SELECT code FROM categories WHERE parent IS ?').all(parentId);
   const nums = siblings.map(s => parseInt(s.code, 10)).filter(n => !isNaN(n));
@@ -274,6 +288,19 @@ app.patch('/api/categories/:id', (req, res) => {
   const code = req.body.code !== undefined ? req.body.code : row.code;
   db.prepare('UPDATE categories SET name = ?, code = ? WHERE id = ?').run(name, code, id);
   res.json(catRow({ ...row, name, code }));
+});
+
+app.delete('/api/categories/:id', (req, res) => {
+  const { id } = req.params;
+  if (!db.prepare('SELECT 1 FROM categories WHERE id = ?').get(id)) return res.status(404).json({ error: 'not found' });
+  const hasChildren = db.prepare('SELECT 1 FROM categories WHERE parent = ?').get(id);
+  const hasItems = db.prepare('SELECT 1 FROM inventar WHERE cat = ?').get(id);
+  const hasTags = db.prepare('SELECT 1 FROM tags WHERE cat = ?').get(id);
+  if (hasChildren) return res.status(409).json({ error: 'category has subcategories -- delete or move those first' });
+  if (hasItems) return res.status(409).json({ error: 'category still has items assigned -- move or delete those first' });
+  if (hasTags) return res.status(409).json({ error: 'category still has tags -- delete those first' });
+  db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+  res.status(204).end();
 });
 
 /* ---- standorte ---- */
@@ -321,16 +348,33 @@ app.post('/api/inventar', (req, res) => {
     return res.status(409).json({ error: 'duplicate inventory number' });
   }
   db.prepare(`
-    INSERT INTO inventar (inv, cat, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge)
-    VALUES (@inv, @cat, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge)
+    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge)
+    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge)
   `).run({
-    inv: b.inv, cat: b.cat, bez: b.bez, hersteller: b.hersteller || '', modell: b.modell || '',
+    inv: b.inv, cat: b.cat, tag: b.tag || null, bez: b.bez, hersteller: b.hersteller || '', modell: b.modell || '',
     serien: b.serien || '', standort: b.standort || '', parent: b.parent || null,
     status: b.status || 'Verfügbar', miete: b.miete || 0, pruef: b.pruef ? 1 : 0,
     letzte: b.letzte || null, naechste: b.naechste || null, notiz: b.notiz || '',
     menge: Math.max(1, parseInt(b.menge, 10) || 1)
   });
+  if (Array.isArray(b.checklist) && b.checklist.length) {
+    const insertItem = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order) VALUES (?, ?, ?, 0, ?)');
+    b.checklist.forEach((text, idx) => insertItem.run(`${b.inv}-c${idx}-${Date.now()}`, b.inv, text, idx));
+  }
   res.status(201).json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(b.inv)));
+});
+
+app.delete('/api/inventar/:inv', (req, res) => {
+  const inv = req.params.inv;
+  if (!db.prepare('SELECT 1 FROM inventar WHERE inv = ?').get(inv)) return res.status(404).json({ error: 'not found' });
+  const tx = db.transaction(() => {
+    // Sets are just convenience groupings, not critical records -- drop the
+    // item from any it belongs to rather than blocking deletion.
+    db.prepare('DELETE FROM bundle_items WHERE inv = ?').run(inv);
+    db.prepare('DELETE FROM inventar WHERE inv = ?').run(inv);
+  });
+  tx();
+  res.status(204).end();
 });
 
 app.patch('/api/inventar/:inv', (req, res) => {
@@ -372,6 +416,113 @@ app.delete('/api/inventar/:inv/photo', (req, res) => {
   if (row.foto) { try { fs.unlinkSync(path.join(PHOTOS_DIR, row.foto)); } catch (e) { /* already gone */ } }
   db.prepare("UPDATE inventar SET foto = '' WHERE inv = ?").run(req.params.inv);
   res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
+});
+
+/* ---- per-item inspection checklist ---- */
+
+// Wholesale replace -- used when creating an item (picking test type(s) +
+// custom lines) or when the whole checklist is edited at once. Toggling a
+// single item's checked state uses the lighter endpoint below instead.
+app.put('/api/inventar/:inv/checklist', (req, res) => {
+  const inv = req.params.inv;
+  if (!db.prepare('SELECT 1 FROM inventar WHERE inv = ?').get(inv)) return res.status(404).json({ error: 'not found' });
+  const items = Array.isArray(req.body.items) ? req.body.items : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM inventar_checklist WHERE inv = ?').run(inv);
+    const insert = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order) VALUES (?, ?, ?, ?, ?)');
+    items.forEach((it, idx) => {
+      const text = typeof it === 'string' ? it : it.text;
+      const checked = typeof it === 'object' && it.checked ? 1 : 0;
+      if (text && text.trim()) insert.run(`${inv}-c${idx}-${Date.now()}`, inv, text.trim(), checked, idx);
+    });
+  });
+  tx();
+  res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(inv)));
+});
+
+app.patch('/api/inventar/:inv/checklist/:itemId', (req, res) => {
+  const row = db.prepare('SELECT * FROM inventar_checklist WHERE id = ? AND inv = ?').get(req.params.itemId, req.params.inv);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  if (req.body.checked !== undefined) {
+    db.prepare('UPDATE inventar_checklist SET checked = ? WHERE id = ?').run(req.body.checked ? 1 : 0, row.id);
+  }
+  if (req.body.text !== undefined) {
+    db.prepare('UPDATE inventar_checklist SET text = ? WHERE id = ?').run(req.body.text, row.id);
+  }
+  res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
+});
+
+app.delete('/api/inventar/:inv/checklist/:itemId', (req, res) => {
+  db.prepare('DELETE FROM inventar_checklist WHERE id = ? AND inv = ?').run(req.params.itemId, req.params.inv);
+  res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
+});
+
+/* ---- tags (e.g. "004.01.A" grouping several unique-coded items) ---- */
+
+app.post('/api/tags', (req, res) => {
+  const { code, name, cat } = req.body;
+  if (!code || !name || !cat) return res.status(400).json({ error: 'code, name, cat required' });
+  if (!db.prepare('SELECT 1 FROM categories WHERE id = ?').get(cat)) return res.status(404).json({ error: 'category not found' });
+  const id = 'tag-' + crypto.randomUUID().slice(0, 8);
+  db.prepare('INSERT INTO tags (id, code, name, cat) VALUES (?, ?, ?, ?)').run(id, code, name, cat);
+  res.status(201).json(db.prepare('SELECT * FROM tags WHERE id = ?').get(id));
+});
+
+app.patch('/api/tags/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM tags WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const code = req.body.code !== undefined ? req.body.code : row.code;
+  const name = req.body.name !== undefined ? req.body.name : row.name;
+  db.prepare('UPDATE tags SET code = ?, name = ? WHERE id = ?').run(code, name, row.id);
+  res.json(db.prepare('SELECT * FROM tags WHERE id = ?').get(row.id));
+});
+
+app.delete('/api/tags/:id', (req, res) => {
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE inventar SET tag = NULL WHERE tag = ?').run(req.params.id);
+    db.prepare('DELETE FROM tags WHERE id = ?').run(req.params.id);
+  });
+  tx();
+  res.status(204).end();
+});
+
+/* ---- test/inspection types (with a checklist template each) ---- */
+
+app.post('/api/test-types', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM test_types').get().m;
+  const id = 'tt-' + crypto.randomUUID().slice(0, 8);
+  const tx = db.transaction(() => {
+    db.prepare('INSERT INTO test_types (id, name, sort_order) VALUES (?, ?, ?)').run(id, name.trim(), maxOrder + 1);
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    const insertItem = db.prepare('INSERT INTO test_type_items (id, test_type_id, text, sort_order) VALUES (?, ?, ?, ?)');
+    items.forEach((text, idx) => { if (text && text.trim()) insertItem.run(`${id}-${idx}`, id, text.trim(), idx); });
+  });
+  tx();
+  res.status(201).json(testTypeRow(db.prepare('SELECT * FROM test_types WHERE id = ?').get(id)));
+});
+
+app.patch('/api/test-types/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM test_types WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const tx = db.transaction(() => {
+    if (req.body.name !== undefined) {
+      db.prepare('UPDATE test_types SET name = ? WHERE id = ?').run(req.body.name, row.id);
+    }
+    if (Array.isArray(req.body.items)) {
+      db.prepare('DELETE FROM test_type_items WHERE test_type_id = ?').run(row.id);
+      const insertItem = db.prepare('INSERT INTO test_type_items (id, test_type_id, text, sort_order) VALUES (?, ?, ?, ?)');
+      req.body.items.forEach((text, idx) => { if (text && text.trim()) insertItem.run(`${row.id}-${idx}-${Date.now()}`, row.id, text.trim(), idx); });
+    }
+  });
+  tx();
+  res.json(testTypeRow(db.prepare('SELECT * FROM test_types WHERE id = ?').get(row.id)));
+});
+
+app.delete('/api/test-types/:id', (req, res) => {
+  db.prepare('DELETE FROM test_types WHERE id = ?').run(req.params.id);
+  res.status(204).end();
 });
 
 /* ---- customers ---- */
@@ -468,12 +619,20 @@ const VERMIETUNG_STATUSES = ['Reserviert', 'Aktiv', 'Abgeschlossen'];
 app.patch('/api/vermietungen/:id', (req, res) => {
   const v = db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(req.params.id);
   if (!v) return res.status(404).json({ error: 'not found' });
-  const { status } = req.body;
-  if (!status || !VERMIETUNG_STATUSES.includes(status)) {
-    return res.status(400).json({ error: 'invalid status' });
+  if (req.body.status !== undefined) {
+    if (!VERMIETUNG_STATUSES.includes(req.body.status)) return res.status(400).json({ error: 'invalid status' });
+    db.prepare('UPDATE vermietungen SET status = ? WHERE id = ?').run(req.body.status, v.id);
   }
-  db.prepare('UPDATE vermietungen SET status = ? WHERE id = ?').run(status, v.id);
+  if (req.body.archiviert !== undefined) {
+    db.prepare('UPDATE vermietungen SET archiviert = ? WHERE id = ?').run(req.body.archiviert ? 1 : 0, v.id);
+  }
   res.json(rentalRow(db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(v.id)));
+});
+
+app.delete('/api/vermietungen/:id', (req, res) => {
+  if (!db.prepare('SELECT 1 FROM vermietungen WHERE id = ?').get(req.params.id)) return res.status(404).json({ error: 'not found' });
+  db.prepare('DELETE FROM vermietungen WHERE id = ?').run(req.params.id);
+  res.status(204).end();
 });
 
 // Items with menge > 1 (bulk/quantity stock) don't get their inventar.status
@@ -590,6 +749,15 @@ const EXPORT_TABLES = {
     columns: ['id', 'name', 'notiz', 'suggested_price', 'artikel'],
     rows: () => db.prepare('SELECT * FROM bundles').all()
       .map(b => ({ ...b, artikel: itemsAsText(db.prepare('SELECT inv, menge FROM bundle_items WHERE bundle_id = ?').all(b.id)) })),
+  },
+  tags: {
+    columns: ['id', 'code', 'name', 'cat'],
+    rows: () => db.prepare('SELECT * FROM tags').all(),
+  },
+  test_types: {
+    columns: ['id', 'name', 'checkliste'],
+    rows: () => db.prepare('SELECT * FROM test_types').all()
+      .map(tt => ({ ...tt, checkliste: db.prepare('SELECT text FROM test_type_items WHERE test_type_id = ? ORDER BY sort_order').all(tt.id).map(i => i.text).join('; ') })),
   },
 };
 

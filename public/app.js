@@ -44,6 +44,28 @@ const STRINGS = {
     settings_sub:'Kategorien, Standorte und Sprache anpassen',
     cat_title:'Hauptgruppen & Untergruppen',
     add_subcat:'+ Unterkategorie', add_maincat:'+ Hauptgruppe hinzufügen',
+    delete:'Löschen',
+    confirm_delete_cat:'Diese Kategorie wirklich löschen?',
+    toast_cat_has_children:'Enthält noch Unterkategorien — erst verschieben oder löschen',
+    toast_cat_has_items:'Enthält noch Artikel — erst verschieben oder löschen',
+    toast_cat_has_tags:'Enthält noch Tags — erst löschen',
+    tag_code_placeholder:'Code, z. B. A', tag_name_placeholder:'Name, z. B. XLR-Kabel 5m',
+    confirm_delete_tag:'Diesen Tag wirklich löschen? Zugeordnete Artikel behalten ihre eigene Nummer.',
+    field_tag:'Tag (optional)', opt_no_tag:'— Kein Tag —',
+    field_test_types:'Prüfarten', field_checklist_preview:'Checkliste (Vorschau)', field_checklist:'Checkliste',
+    checklist_empty:'Noch keine Checklisten-Einträge.', checklist_extra_placeholder:'Weiterer Punkt …',
+    test_types_title:'Prüfarten', test_types_p:'Prüfarten mit ihrer Standard-Checkliste. Beim Anlegen eines prüfpflichtigen Artikels lassen sich passende Prüfarten auswählen — ihre Checkliste wird übernommen und lässt sich individuell ergänzen.',
+    test_type_name_placeholder:'Neue Prüfart …',
+    confirm_delete_test_type:'Diese Prüfart wirklich löschen? Bereits angelegte Artikel behalten ihre Checkliste.',
+    btn_archive:'Archivieren', btn_unarchive:'Aus Archiv holen',
+    btn_delete_rental:'Vermietung löschen', btn_delete_item:'Artikel löschen',
+    nav_archive:'Archiv', nav_active_rentals:'Aktuelle',
+    sort_by:'Sortieren nach', sort_date_asc:'Datum (aufsteigend)', sort_date_desc:'Datum (absteigend)',
+    sort_kunde:'Kunde (A–Z)', sort_status:'Status', sort_preis:'Preis (höchster zuerst)',
+    empty_archive:'Keine archivierten Vermietungen.',
+    confirm_delete_rental:'Diese Vermietung wirklich löschen?', toast_rental_deleted:'Vermietung gelöscht',
+    confirm_delete_item:'Diesen Artikel wirklich löschen?', toast_item_deleted:'Artikel {inv} gelöscht',
+    toast_rental_archived:'Vermietung archiviert', toast_rental_unarchived:'Vermietung wiederhergestellt',
     standorte_title:'Standorte', standort_placeholder:'Neuer Standort …', add:'Hinzufügen',
     thresh_title:'Prüf-Warnschwellen', thresh_yellow:'Gelb ab (Tage vor Fälligkeit)', thresh_orange:'Orange ab (Tage vor Fälligkeit)',
     pin_title:'Zugangs-PIN', pin_p:'Diese PIN schützt die ganze Website. Einmal im Browser entsperrt, bleibt der Zugriff gespeichert.',
@@ -79,6 +101,7 @@ const STRINGS = {
     bulk_return_note:'Sammelartikel — Bestand wird automatisch wieder freigegeben.',
     field_photo:'Foto', add_photo:'Foto hinzufügen', remove_photo:'Foto entfernen',
     nav_timeline:'Zeitleiste', nav_customers:'Kunden', nav_bundles:'Sets', nav_stats:'Statistik',
+    nav_tags:'Tags', nav_test_types:'Prüfarten',
     sheet_customers:'Kunden', sheet_new_customer:'Neuer Kunde',
     btn_new_customer:'+ Kunde hinzufügen', btn_create_customer:'Kunde anlegen', btn_delete_customer:'Kunde löschen',
     empty_customers:'Noch keine Kunden angelegt.', empty_customer_rentals:'Noch keine Vermietungen für diesen Kunden.',
@@ -168,6 +191,28 @@ const STRINGS = {
     settings_sub:'Adjust categories, locations and language',
     cat_title:'Categories & subcategories',
     add_subcat:'+ Subcategory', add_maincat:'+ Add category',
+    delete:'Delete',
+    confirm_delete_cat:'Delete this category?',
+    toast_cat_has_children:'Still has subcategories -- move or delete those first',
+    toast_cat_has_items:'Still has items -- move or delete those first',
+    toast_cat_has_tags:'Still has tags -- delete those first',
+    tag_code_placeholder:'Code, e.g. A', tag_name_placeholder:'Name, e.g. 5m XLR cable',
+    confirm_delete_tag:'Delete this tag? Items keep their own number.',
+    field_tag:'Tag (optional)', opt_no_tag:'— No tag —',
+    field_test_types:'Test types', field_checklist_preview:'Checklist (preview)', field_checklist:'Checklist',
+    checklist_empty:'No checklist items yet.', checklist_extra_placeholder:'Another item …',
+    test_types_title:'Test types', test_types_p:'Test types with their default checklist. When creating an item that requires inspection, pick the matching type(s) -- their checklist is copied in and can be adjusted per item.',
+    test_type_name_placeholder:'New test type …',
+    confirm_delete_test_type:'Delete this test type? Items that already used it keep their checklist.',
+    btn_archive:'Archive', btn_unarchive:'Restore from archive',
+    btn_delete_rental:'Delete rental', btn_delete_item:'Delete item',
+    nav_archive:'Archive', nav_active_rentals:'Current',
+    sort_by:'Sort by', sort_date_asc:'Date (earliest first)', sort_date_desc:'Date (latest first)',
+    sort_kunde:'Customer (A-Z)', sort_status:'Status', sort_preis:'Price (highest first)',
+    empty_archive:'No archived rentals.',
+    confirm_delete_rental:'Delete this rental?', toast_rental_deleted:'Rental deleted',
+    confirm_delete_item:'Delete this item?', toast_item_deleted:'Item {inv} deleted',
+    toast_rental_archived:'Rental archived', toast_rental_unarchived:'Rental restored',
     standorte_title:'Locations', standort_placeholder:'New location …', add:'Add',
     thresh_title:'Inspection warning thresholds', thresh_yellow:'Yellow from (days before due)', thresh_orange:'Orange from (days before due)',
     pin_title:'Access PIN', pin_p:'This PIN protects the whole site. Once unlocked in a browser, access stays remembered.',
@@ -203,6 +248,7 @@ const STRINGS = {
     bulk_return_note:'Bulk item — stock is freed automatically again.',
     field_photo:'Photo', add_photo:'Add photo', remove_photo:'Remove photo',
     nav_timeline:'Timeline', nav_customers:'Customers', nav_bundles:'Sets', nav_stats:'Stats',
+    nav_tags:'Tags', nav_test_types:'Test types',
     sheet_customers:'Customers', sheet_new_customer:'New customer',
     btn_new_customer:'+ Add customer', btn_create_customer:'Create customer', btn_delete_customer:'Delete customer',
     empty_customers:'No customers yet.', empty_customer_rentals:'No rentals for this customer yet.',
@@ -320,6 +366,8 @@ let ui = {
   selectMode:false, selectedInv: new Set(), selectedQty: {},
   expandedCats: new Set(),
   expandedSettingsCats: new Set(),
+  expandedTestTypes: new Set(),
+  showArchived:false, rentalSort:'date', explorerSort:{},
   lang: localStorage.getItem('fundus-lang') || 'de',
   theme: localStorage.getItem('fundus-theme') || 'system',
 };
@@ -349,6 +397,9 @@ function toggleCatExpand(id){
   if(ui.expandedCats.has(id)) ui.expandedCats.delete(id); else ui.expandedCats.add(id);
 }
 function byInv(inv){ return state.inventar.find(i=>i.inv===inv); }
+function distinctHersteller(){
+  return [...new Set(state.inventar.map(i=>i.hersteller).filter(h=>h && h.trim()))].sort((a,b)=>a.localeCompare(b));
+}
 function fmtDate(iso){ if(!iso) return '–'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function fmtDateLong(d){ return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{weekday:'long',day:'2-digit',month:'long'}); }
 function fmtEuro(n){ return (Math.round(n*100)/100).toLocaleString(ui.lang==='en'?'en-GB':'de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -594,10 +645,15 @@ function screenStart(){
   `;
 }
 
+function tagLabel(tagId){
+  const tg = state.tags.find(x=>x.id===tagId);
+  return tg ? catPathCodes(tg.cat)+'.'+tg.code : '';
+}
+
 function itemCard(i, showPruef, selectable){
   const ps = pruefStatus(i);
   const cls = showPruef && ps ? ps : '';
-  const metaLine = showPruef && ps ? pruefLabel(i) : `${catPathNames(i.cat)} · ${esc(i.standort)}`;
+  const metaLine = showPruef && ps ? pruefLabel(i) : `${catPathNames(i.cat)} · ${esc(i.standort)}${i.tag?' · '+esc(tagLabel(i.tag)):''}`;
   const bulk = i.menge > 1;
   const avail = bulk ? availableTodayCount(i) : null;
   const pill = showPruef && ps
@@ -646,6 +702,13 @@ function renderInventarCatNode(node, depth, statusFilter){
   const totalCount = countItemsUnderStatus(node.id, statusFilter);
   if(totalCount===0) return '';
   const expanded = ui.expandedCats.has(node.id);
+
+  const nodeTags = state.tags.filter(tg=>tg.cat===node.id);
+  const untaggedItems = directItems.filter(i=>!i.tag);
+  const taggedGroups = nodeTags
+    .map(tg=>({tag:tg, items: directItems.filter(i=>i.tag===tg.id)}))
+    .filter(g=>g.items.length);
+
   return `
     <div class="cat-node" style="margin-left:${depth*10}px;">
       <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
@@ -656,7 +719,13 @@ function renderInventarCatNode(node, depth, statusFilter){
       </button>
       ${expanded ? `
         <div class="cat-children">
-          ${directItems.map(i=>itemCard(i,false,ui.selectMode)).join('')}
+          ${taggedGroups.map(g=>`
+            <div class="tag-group">
+              <div class="tag-group-label mono">${esc(catPathCodes(node.id))}.${esc(g.tag.code)} · ${esc(g.tag.name)}</div>
+              ${g.items.map(i=>itemCard(i,false,ui.selectMode)).join('')}
+            </div>
+          `).join('')}
+          ${untaggedItems.map(i=>itemCard(i,false,ui.selectMode)).join('')}
           ${children.map(c=>renderInventarCatNode(c,depth+1,statusFilter)).join('')}
         </div>
       ` : ''}
@@ -749,18 +818,42 @@ function rentalStatusPill(status){
 }
 function rentalStatusLabel(status){ return t('rental_status_'+status) || status; }
 
+function sortRentals(list){
+  const arr = [...list];
+  const by = ui.rentalSort || 'date';
+  if(by==='date') arr.sort((a,b)=> a.von<b.von?-1:a.von>b.von?1:0);
+  else if(by==='date-desc') arr.sort((a,b)=> a.von>b.von?-1:a.von<b.von?1:0);
+  else if(by==='kunde') arr.sort((a,b)=>a.kunde.localeCompare(b.kunde));
+  else if(by==='status') arr.sort((a,b)=>a.status.localeCompare(b.status));
+  else if(by==='preis') arr.sort((a,b)=>rentalTotal(b)-rentalTotal(a));
+  return arr;
+}
+
 function screenVermietungen(){
-  const list = [...state.vermietungen].sort((a,b)=> a.status==='Abgeschlossen'?1:-1);
+  const showArchived = ui.showArchived;
+  const base = state.vermietungen.filter(v=> showArchived ? v.archiviert : !v.archiviert);
+  const list = sortRentals(base);
   return `
     <h1 class="page-title">${t('title_vermietungen')}</h1>
-    <p class="page-sub">${t('verm_sub',{n:state.vermietungen.length})}</p>
+    <p class="page-sub">${t('verm_sub',{n:base.length})}</p>
     <div class="tool-row">
       <button class="tool-btn" data-action="open-timeline">${ICONS.calendar}${t('nav_timeline')}</button>
       <button class="tool-btn" data-action="open-customers">${t('nav_customers')}</button>
       <button class="tool-btn" data-action="open-bundles">${t('nav_bundles')}</button>
       <button class="tool-btn" data-action="open-stats">${t('nav_stats')}</button>
+      <button class="tool-btn ${showArchived?'active':''}" data-action="toggle-show-archived">${showArchived? t('nav_active_rentals') : t('nav_archive')}</button>
     </div>
-    <div class="card-list">
+    <div class="field" style="max-width:240px;">
+      <label>${t('sort_by')}</label>
+      <select data-action="set-rental-sort">
+        <option value="date" ${(ui.rentalSort||'date')==='date'?'selected':''}>${t('sort_date_asc')}</option>
+        <option value="date-desc" ${ui.rentalSort==='date-desc'?'selected':''}>${t('sort_date_desc')}</option>
+        <option value="kunde" ${ui.rentalSort==='kunde'?'selected':''}>${t('sort_kunde')}</option>
+        <option value="status" ${ui.rentalSort==='status'?'selected':''}>${t('sort_status')}</option>
+        <option value="preis" ${ui.rentalSort==='preis'?'selected':''}>${t('sort_preis')}</option>
+      </select>
+    </div>
+    <div class="card-list" style="margin-top:14px;">
       ${list.length? list.map(v=>`
         <button class="item-card" data-action="open-rental" data-id="${v.id}">
           <div class="ic-body">
@@ -770,7 +863,7 @@ function screenVermietungen(){
           </div>
           <span class="pill ${rentalStatusPill(v.status)}">${rentalStatusLabel(v.status)}</span>
         </button>
-      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_verm')}</p></div>`}
+      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${showArchived? t('empty_archive') : t('empty_verm')}</p></div>`}
     </div>
   `;
 }
@@ -781,17 +874,68 @@ function renderCatEditNode(node, depth){
   const children = catChildren(node.id);
   const hasKids = children.length>0;
   const expanded = !hasKids || ui.expandedSettingsCats.has(node.id);
+  const tags = depth===1 ? state.tags.filter(tg=>tg.cat===node.id) : [];
   return `
     <div class="cat-edit-node" style="margin-left:${depth*16}px;">
       <div class="cat-edit-row">
         ${hasKids ? `<button class="cat-toggle" data-action="toggle-settings-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
         <input class="code mono" data-action="edit-cat-code" data-id="${node.id}" value="${esc(node.code)}" maxlength="4" />
         <input class="name" data-action="edit-cat-name" data-id="${node.id}" value="${esc(node.name)}" />
+        <button class="icon-btn cat-delete-btn" data-action="delete-cat" data-id="${node.id}" aria-label="${t('delete')}">${ICONS.close}</button>
       </div>
       ${expanded ? `
         <div class="cat-edit-children">
           ${children.map(c=>renderCatEditNode(c,depth+1)).join('')}
-          <button class="add-link" data-action="add-subcat" data-id="${node.id}">${t('add_subcat')}</button>
+          ${depth===0 ? `<button class="add-link" data-action="add-subcat" data-id="${node.id}">${t('add_subcat')}</button>` : ''}
+          ${depth===1 ? renderTagEditor(node, tags) : ''}
+        </div>
+      ` : ''}
+    </div>`;
+}
+
+function renderTagEditor(node, tags){
+  return `
+    <div class="tag-editor">
+      ${tags.length ? `
+        <div class="chip-edit-row">
+          ${tags.map(tg=>`
+            <span class="chip-edit mono">${esc(catPathCodes(node.id))}.${esc(tg.code)} — ${esc(tg.name)}<button data-action="delete-tag" data-id="${tg.id}">${ICONS.close}</button></span>
+          `).join('')}
+        </div>
+      ` : ''}
+      <div class="add-inline tag-add-inline" data-tag-cat="${node.id}">
+        <input type="text" class="mono" maxlength="3" placeholder="${t('tag_code_placeholder')}" style="width:52px;flex:none;" />
+        <input type="text" placeholder="${t('tag_name_placeholder')}" />
+        <button data-action="add-tag" data-cat="${node.id}">${t('add')}</button>
+      </div>
+    </div>`;
+}
+
+function renderTestTypeEditor(tt){
+  const expanded = ui.expandedTestTypes.has(tt.id);
+  return `
+    <div class="cat-edit-node" style="margin-bottom:4px;">
+      <div class="cat-edit-row">
+        <button class="cat-toggle" data-action="toggle-test-type-expand" data-id="${tt.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>
+        <input class="name" data-action="edit-test-type-name" data-id="${tt.id}" value="${esc(tt.name)}" />
+        <button class="icon-btn cat-delete-btn" data-action="delete-test-type" data-id="${tt.id}" aria-label="${t('delete')}">${ICONS.close}</button>
+      </div>
+      ${expanded ? `
+        <div class="cat-edit-children">
+          ${tt.items.length? `
+            <div class="checklist-preview">
+              ${tt.items.map(it=>`
+                <div class="checklist-preview-row">
+                  <span>${esc(it.text)}</span>
+                  <button data-action="delete-test-type-item" data-tt="${tt.id}" data-id="${it.id}">${ICONS.close}</button>
+                </div>
+              `).join('')}
+            </div>
+          ` : `<p class="field-hint">${t('checklist_empty')}</p>`}
+          <div class="add-inline">
+            <input type="text" id="new-tt-item-${tt.id}" placeholder="${t('checklist_extra_placeholder')}" />
+            <button data-action="add-test-type-item" data-tt="${tt.id}">${t('add')}</button>
+          </div>
         </div>
       ` : ''}
     </div>`;
@@ -886,6 +1030,16 @@ function screenEinstellungen(){
       <div class="add-inline">
         <input type="text" id="new-standort" placeholder="${t('standort_placeholder')}" />
         <button data-action="add-standort">${t('add')}</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('test_types_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('test_types_p')}</p>
+      ${state.testTypes.map(tt=>renderTestTypeEditor(tt)).join('')}
+      <div class="add-inline" style="margin-top:6px;">
+        <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
+        <button data-action="add-test-type">${t('add')}</button>
       </div>
     </div>
 
@@ -1050,6 +1204,16 @@ function itemDetailSheet(i){
       <div class="detail-item"><span class="dl-label">${t('field_miete')}</span><span class="dl-value mono">${i.miete? fmtEuro(i.miete):'–'}</span></div>
     </div>
 
+    ${state.tags.filter(tg=>tg.cat===i.cat).length? `
+      <div class="field">
+        <label>${t('field_tag')}</label>
+        <select data-action="edit-item" data-field="tag" data-inv="${i.inv}">
+          <option value="">${t('opt_no_tag')}</option>
+          ${state.tags.filter(tg=>tg.cat===i.cat).map(tg=>`<option value="${tg.id}" ${i.tag===tg.id?'selected':''}>${esc(catPathCodes(tg.cat))}.${esc(tg.code)} — ${esc(tg.name)}</option>`).join('')}
+        </select>
+      </div>
+    ` : ''}
+
     <div class="field">
       <label>${t('field_status')}</label>
       <select data-action="edit-item" data-field="status" data-inv="${i.inv}">
@@ -1091,13 +1255,41 @@ function itemDetailSheet(i){
         <div class="detail-item"><span class="dl-label">${t('field_naechste')}</span><span class="dl-value mono">${fmtDate(i.naechste)}</span></div>
         <div class="detail-item span2"><span class="dl-label">${t('field_status')}</span><span class="dl-value">${pruefLabel(i)}</span></div>
       </div>
+      <div class="field">
+        <label>${t('field_checklist')}</label>
+        ${i.checklist.length? `
+          <div class="checklist-preview">
+            ${i.checklist.map(c=>`
+              <div class="checklist-preview-row">
+                <label class="checkbox-field" style="margin:0;flex:1;">
+                  <input type="checkbox" data-action="toggle-checklist-item" data-inv="${i.inv}" data-id="${c.id}" ${c.checked?'checked':''} />
+                  <span style="${c.checked?'text-decoration:line-through;color:var(--text-faint);':''}">${esc(c.text)}</span>
+                </label>
+                <button data-action="remove-checklist-item" data-inv="${i.inv}" data-id="${c.id}">${ICONS.close}</button>
+              </div>
+            `).join('')}
+          </div>
+        ` : `<p class="field-hint">${t('checklist_empty')}</p>`}
+        <div class="add-inline">
+          <input type="text" id="new-checklist-item-${i.inv}" placeholder="${t('checklist_extra_placeholder')}" />
+          <button data-action="add-checklist-item" data-inv="${i.inv}">${t('add')}</button>
+        </div>
+      </div>
     ` : ''}
 
     <div class="field" style="margin-top:6px;">
       <label>${t('field_notiz')}</label>
       <textarea data-action="edit-item" data-field="notiz" data-inv="${i.inv}">${esc(i.notiz)}</textarea>
     </div>
+
+    <div class="divider"></div>
+    <button class="btn btn-secondary" data-action="delete-item" data-inv="${i.inv}" style="color:var(--status-crit);">${t('btn_delete_item')}</button>
   `;
+}
+
+function resolvedDraftChecklist(d){
+  const fromTypes = state.testTypes.filter(tt=>d.testTypes.includes(tt.id)).flatMap(tt=>tt.items.map(it=>it.text));
+  return [...fromTypes, ...d.checklistExtra];
 }
 
 function nextSuggestion(catId){
@@ -1109,10 +1301,12 @@ function nextSuggestion(catId){
 
 function newItemSheet(){
   const d = ui.newItemDraft || (ui.newItemDraft = {
-    inv:'', cat: firstLeafDefault(),
+    inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
-    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1
+    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1,
+    testTypes:[], checklistExtra:[], fotoDataUrl:null
   });
+  const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
   return `
     <div class="field">
       <label>${t('field_category')}</label>
@@ -1120,6 +1314,15 @@ function newItemSheet(){
         <span>${catPathNames(d.cat)}</span>${ICONS.chevRight}
       </button>
     </div>
+    ${availableTags.length? `
+      <div class="field">
+        <label>${t('field_tag')}</label>
+        <select data-action="draft-item" data-field="tag">
+          <option value="">${t('opt_no_tag')}</option>
+          ${availableTags.map(tg=>`<option value="${tg.id}" ${d.tag===tg.id?'selected':''}>${esc(catPathCodes(tg.cat))}.${esc(tg.code)} — ${esc(tg.name)}</option>`).join('')}
+        </select>
+      </div>
+    ` : ''}
     <div class="field">
       <label>${t('field_invnum')}</label>
       <div class="inline-suggest">
@@ -1132,8 +1335,28 @@ function newItemSheet(){
       <label>${t('field_bez')}</label>
       <input type="text" data-action="draft-item" data-field="bez" value="${esc(d.bez)}" placeholder="${t('bez_placeholder')}" />
     </div>
+    <div class="field">
+      <label>${t('field_photo')}</label>
+      ${d.fotoDataUrl ? `
+        <div class="photo-row">
+          <img class="photo-preview" src="${d.fotoDataUrl}" alt="" />
+          <button class="link-btn" data-action="remove-draft-photo">${t('remove_photo')}</button>
+        </div>
+      ` : `
+        <label class="photo-upload-btn">
+          ${t('add_photo')}
+          <input type="file" accept="image/*" data-action="upload-draft-photo" style="display:none;" />
+        </label>
+      `}
+    </div>
     <div class="field-row">
-      <div class="field"><label>${t('field_hersteller')}</label><input type="text" data-action="draft-item" data-field="hersteller" value="${esc(d.hersteller)}" /></div>
+      <div class="field">
+        <label>${t('field_hersteller')}</label>
+        <input type="text" list="hersteller-list" data-action="draft-item" data-field="hersteller" value="${esc(d.hersteller)}" />
+        <datalist id="hersteller-list">
+          ${distinctHersteller().map(h=>`<option value="${esc(h)}"></option>`).join('')}
+        </datalist>
+      </div>
       <div class="field"><label>${t('field_modelltyp')}</label><input type="text" data-action="draft-item" data-field="modell" value="${esc(d.modell)}" /></div>
     </div>
     <div class="field-row">
@@ -1157,6 +1380,36 @@ function newItemSheet(){
       <div class="field-row">
         <div class="field"><label>${t('field_letzte')}</label><input type="date" data-action="draft-item" data-field="letzte" value="${esc(d.letzte)}" /></div>
         <div class="field"><label>${t('field_intervall')}</label><input type="number" min="1" data-action="draft-item" data-field="intervall" value="${esc(d.intervall)}" /></div>
+      </div>
+      <div class="field">
+        <label>${t('field_test_types')}</label>
+        <div class="checkbox-list">
+          ${state.testTypes.map(tt=>`
+            <label class="checkbox-field">
+              <input type="checkbox" data-action="toggle-draft-test-type" data-id="${tt.id}" ${d.testTypes.includes(tt.id)?'checked':''} />
+              <span>${esc(tt.name)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div class="field">
+        <label>${t('field_checklist_preview')}</label>
+        ${resolvedDraftChecklist(d).length? `
+          <div class="checklist-preview">
+            ${resolvedDraftChecklist(d).map((text,idx)=>{
+              const extraIdx = idx - (resolvedDraftChecklist(d).length - d.checklistExtra.length);
+              return `
+              <div class="checklist-preview-row">
+                <span>${esc(text)}</span>
+                ${extraIdx>=0? `<button data-action="remove-draft-checklist-extra" data-idx="${extraIdx}">${ICONS.close}</button>` : ''}
+              </div>`;
+            }).join('')}
+          </div>
+        ` : `<p class="field-hint">${t('checklist_empty')}</p>`}
+        <div class="add-inline">
+          <input type="text" id="new-checklist-extra" placeholder="${t('checklist_extra_placeholder')}" />
+          <button data-action="add-draft-checklist-extra">${t('add')}</button>
+        </div>
       </div>
     ` : ''}
     <div class="field">
@@ -1211,6 +1464,11 @@ function rentalDetailSheet(v){
         <option value="Abgeschlossen" ${v.status==='Abgeschlossen'?'selected':''}>${t('rental_status_Abgeschlossen')}</option>
       </select>
       <span class="field-hint">${t('field_status_manual_hint')}</span>
+    </div>
+    <div class="divider"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" data-action="toggle-archive-rental" data-id="${v.id}">${v.archiviert? t('btn_unarchive') : t('btn_archive')}</button>
+      <button class="btn btn-secondary" data-action="delete-rental" data-id="${v.id}" style="color:var(--status-crit);">${t('btn_delete_rental')}</button>
     </div>
   `;
 }
@@ -1755,15 +2013,35 @@ function dataExplorerSheet(){
     if(typeof v==='boolean') return v?'true':'false';
     return String(v);
   }
-  function rawTable(title, rows, columns){
+  function sortRows(rows, tableKey){
+    const sortState = ui.explorerSort[tableKey];
+    if(!sortState) return rows;
+    const { col, dir } = sortState;
+    const sorted = [...rows].sort((a,b)=>{
+      const av = a[col], bv = b[col];
+      if(av==null && bv==null) return 0;
+      if(av==null) return -1;
+      if(bv==null) return 1;
+      if(typeof av==='number' && typeof bv==='number') return av-bv;
+      return String(av).localeCompare(String(bv), undefined, {numeric:true, sensitivity:'base'});
+    });
+    return dir==='desc' ? sorted.reverse() : sorted;
+  }
+  function rawTable(tableKey, title, rows, columns){
+    const sorted = sortRows(rows, tableKey);
+    const sortState = ui.explorerSort[tableKey];
     return `
       <div class="section-head"><h2>${esc(title)} (${rows.length})</h2></div>
       ${rows.length ? `
         <div class="raw-table-wrap">
           <table class="raw-table">
-            <thead><tr>${columns.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+            <thead><tr>${columns.map(c=>{
+              const active = sortState && sortState.col===c;
+              const arrow = active ? (sortState.dir==='desc'?' ▾':' ▴') : '';
+              return `<th class="raw-th-sort" data-action="sort-explorer" data-table="${tableKey}" data-col="${c}">${esc(c)}${arrow}</th>`;
+            }).join('')}</tr></thead>
             <tbody>
-              ${rows.map(r=>`<tr>${columns.map(c=>`<td>${esc(formatCell(r[c]))}</td>`).join('')}</tr>`).join('')}
+              ${sorted.map(r=>`<tr>${columns.map(c=>`<td>${esc(formatCell(r[c]))}</td>`).join('')}</tr>`).join('')}
             </tbody>
           </table>
         </div>
@@ -1773,13 +2051,15 @@ function dataExplorerSheet(){
 
   return `
     <p class="field-hint" style="margin-bottom:16px;">${t('explorer_intro')}</p>
-    ${rawTable(t('tab_inventar'), state.inventar, ['inv','cat','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','foto'])}
-    ${rawTable(t('tab_vermietungen'), state.vermietungen.map(v=>({...v, items:itemsAsTextClient(v.items), pack:JSON.stringify(v.pack)})), ['id','kunde','customer_id','von','bis','status','items','pack'])}
-    ${rawTable(t('nav_customers'), state.customers, ['id','name','firma','email','telefon','adresse','notiz','created_at'])}
-    ${rawTable(t('nav_bundles'), state.bundles.map(b=>({...b, items:itemsAsTextClient(b.items)})), ['id','name','notiz','suggestedPrice','items'])}
-    ${rawTable(t('cat_title'), state.categories, ['id','code','name','parent'])}
-    ${rawTable(t('standorte_title'), state.standorte.map(name=>({name})), ['name'])}
-    ${rawTable(t('thresh_title'), Object.entries(state.schwellen).map(([key,value])=>({key,value})), ['key','value'])}
+    ${rawTable('inventar', t('tab_inventar'), state.inventar, ['inv','cat','tag','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','foto'])}
+    ${rawTable('vermietungen', t('tab_vermietungen'), state.vermietungen.map(v=>({...v, items:itemsAsTextClient(v.items), pack:JSON.stringify(v.pack)})), ['id','kunde','customer_id','von','bis','status','archiviert','items','pack'])}
+    ${rawTable('customers', t('nav_customers'), state.customers, ['id','name','firma','email','telefon','adresse','notiz','created_at'])}
+    ${rawTable('bundles', t('nav_bundles'), state.bundles.map(b=>({...b, items:itemsAsTextClient(b.items)})), ['id','name','notiz','suggestedPrice','items'])}
+    ${rawTable('tags', t('nav_tags'), state.tags, ['id','code','name','cat'])}
+    ${rawTable('testTypes', t('nav_test_types'), state.testTypes.map(tt=>({...tt, items:tt.items.map(i=>i.text).join('; ')})), ['id','name','items'])}
+    ${rawTable('categories', t('cat_title'), state.categories, ['id','code','name','parent'])}
+    ${rawTable('standorte', t('standorte_title'), state.standorte.map(name=>({name})), ['name'])}
+    ${rawTable('schwellen', t('thresh_title'), Object.entries(state.schwellen).map(([key,value])=>({key,value})), ['key','value'])}
   `;
 }
 
@@ -1844,9 +2124,12 @@ function onClick(e){
       const id = t2.dataset.id;
       if(top.for==='draft'){
         ui.newItemDraft.cat = id;
+        ui.newItemDraft.tag = null;
       } else {
-        byInv(top.inv).cat = id;
-        api('PATCH', `/api/inventar/${encodeURIComponent(top.inv)}`, {cat:id}).catch(()=>showToast(t('toast_sync_failed')));
+        const item = byInv(top.inv);
+        item.cat = id;
+        item.tag = null;
+        api('PATCH', `/api/inventar/${encodeURIComponent(top.inv)}`, {cat:id, tag:null}).catch(()=>showToast(t('toast_sync_failed')));
       }
       popSheet(); break;
     }
@@ -1901,6 +2184,49 @@ function onClick(e){
       api('DELETE', `/api/inventar/${encodeURIComponent(t2.dataset.inv)}/photo`).catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
+    case 'remove-draft-photo':
+      ui.newItemDraft.fotoDataUrl = null; render(); break;
+    case 'toggle-checklist-item': {
+      const item = byInv(t2.dataset.inv);
+      const entry = item.checklist.find(c=>c.id===t2.dataset.id);
+      if(entry){
+        entry.checked = !entry.checked;
+        render();
+        api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(entry.id)}`, {checked:entry.checked}).catch(()=>showToast(t('toast_sync_failed')));
+      }
+      break;
+    }
+    case 'remove-checklist-item': {
+      const item = byInv(t2.dataset.inv);
+      item.checklist = item.checklist.filter(c=>c.id!==t2.dataset.id);
+      render();
+      api('DELETE', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(t2.dataset.id)}`).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'add-checklist-item': {
+      const inv = t2.dataset.inv;
+      const inp = document.getElementById(`new-checklist-item-${inv}`);
+      if(inp && inp.value.trim()){
+        doAddChecklistItem(inv, inp.value.trim());
+      }
+      break;
+    }
+    case 'toggle-draft-test-type': {
+      const d = ui.newItemDraft; const id = t2.dataset.id;
+      const idx = d.testTypes.indexOf(id);
+      if(idx>=0) d.testTypes.splice(idx,1); else d.testTypes.push(id);
+      render(); break;
+    }
+    case 'add-draft-checklist-extra': {
+      const inp = document.getElementById('new-checklist-extra');
+      if(inp && inp.value.trim()){ ui.newItemDraft.checklistExtra.push(inp.value.trim()); render(); }
+      break;
+    }
+    case 'remove-draft-checklist-extra': {
+      const idx = parseInt(t2.dataset.idx,10);
+      ui.newItemDraft.checklistExtra.splice(idx,1);
+      render(); break;
+    }
     case 'toggle-cat-expand':
       toggleCatExpand(t2.dataset.id); render(); break;
     case 'toggle-settings-cat-expand': {
@@ -1912,6 +2238,52 @@ function onClick(e){
       doAddRootCat(); break;
     case 'add-subcat':
       doAddSubcat(t2.dataset.id); break;
+    case 'delete-cat':
+      doDeleteCat(t2.dataset.id); break;
+    case 'add-tag': {
+      const wrap = t2.closest('.tag-add-inline');
+      const [codeInput, nameInput] = wrap.querySelectorAll('input');
+      doAddTag(t2.dataset.cat, codeInput.value, nameInput.value);
+      break;
+    }
+    case 'delete-tag':
+      doDeleteTag(t2.dataset.id); break;
+    case 'toggle-test-type-expand':
+      if(ui.expandedTestTypes.has(t2.dataset.id)) ui.expandedTestTypes.delete(t2.dataset.id); else ui.expandedTestTypes.add(t2.dataset.id);
+      render(); break;
+    case 'delete-test-type':
+      doDeleteTestType(t2.dataset.id); break;
+    case 'delete-test-type-item':
+      doRemoveTestTypeItem(t2.dataset.tt, t2.dataset.id); break;
+    case 'add-test-type-item': {
+      const ttId = t2.dataset.tt;
+      const inp = document.getElementById(`new-tt-item-${ttId}`);
+      if(inp && inp.value.trim()) doAddTestTypeItem(ttId, inp.value.trim());
+      break;
+    }
+    case 'add-test-type':
+      doAddTestType(); break;
+    case 'toggle-show-archived':
+      ui.showArchived = !ui.showArchived; render(); break;
+    case 'toggle-archive-rental': {
+      const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+      v.archiviert = !v.archiviert;
+      closeSheets();
+      showToast(v.archiviert ? t('toast_rental_archived') : t('toast_rental_unarchived'));
+      api('PATCH', `/api/vermietungen/${v.id}`, {archiviert:v.archiviert}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'delete-rental':
+      doDeleteRental(t2.dataset.id); break;
+    case 'delete-item':
+      doDeleteItem(t2.dataset.inv); break;
+    case 'sort-explorer': {
+      const table = t2.dataset.table, col = t2.dataset.col;
+      const cur = ui.explorerSort[table];
+      if(cur && cur.col===col) ui.explorerSort[table] = {col, dir: cur.dir==='asc'?'desc':'asc'};
+      else ui.explorerSort[table] = {col, dir:'asc'};
+      render(); break;
+    }
     case 'add-standort':
       doAddStandort(); break;
     case 'remove-standort': {
@@ -2015,7 +2387,7 @@ function onChange(e){
   if(action==='edit-item'){
     const item = byInv(t2.dataset.inv);
     const field = t2.dataset.field;
-    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : t2.value);
+    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : t2.value);
     item[field] = value;
     if(field==='status' || field==='menge') render();
     api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {[field]: value}).catch(()=>showToast(t('toast_sync_failed')));
@@ -2121,6 +2493,15 @@ function onChange(e){
   if(action==='draft-return'){
     ui.returnDraft[t2.dataset.inv] = t2.value; return;
   }
+  if(action==='upload-draft-photo'){
+    const file = t2.files && t2.files[0];
+    if(!file) return;
+    resizeImageToDataUrl(file, 320, 0.72).then(dataUrl=>{
+      ui.newItemDraft.fotoDataUrl = dataUrl;
+      render();
+    }).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
   if(action==='set-select-item-qty'){
     const inv = t2.dataset.inv;
     const item = byInv(inv);
@@ -2136,6 +2517,12 @@ function onChange(e){
       entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
       render();
     }
+    return;
+  }
+  if(action==='edit-test-type-name'){
+    const tt = state.testTypes.find(x=>x.id===t2.dataset.id);
+    tt.name = t2.value;
+    api('PATCH', `/api/test-types/${tt.id}`, {name: tt.name}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
   if(action==='edit-cat-name'){
@@ -2165,6 +2552,9 @@ function onChange(e){
       .catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
+  if(action==='set-rental-sort'){
+    ui.rentalSort = t2.value; render(); return;
+  }
   if(action==='edit-rental-status'){
     const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
     v.status = t2.value;
@@ -2179,17 +2569,26 @@ async function doSaveNewItem(){
   if(!d.inv || !d.bez){ showToast(t('toast_need_inv_bez')); return; }
   if(byInv(d.inv)){ showToast(t('toast_dup_inv',{inv:d.inv})); return; }
   const naechste = d.pruef && d.letzte ? addMonths(d.letzte, parseInt(d.intervall,10)||12) : null;
+  const checklistTexts = d.pruef ? resolvedDraftChecklist(d) : [];
   const item = {
-    inv:d.inv, cat:d.cat, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
+    inv:d.inv, cat:d.cat, tag:d.tag||null, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
     standort:d.standort, parent:null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
     pruef:!!d.pruef, letzte:d.letzte||null, naechste, notiz:d.notiz||'',
-    menge:Math.max(1, parseInt(d.menge,10)||1), foto:''
+    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'',
+    checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };
+  const fotoDataUrl = d.fotoDataUrl;
   state.inventar.push(item);
   closeSheets();
   showToast(t('toast_item_created',{inv:item.inv}));
   try {
-    await api('POST', '/api/inventar', item);
+    await api('POST', '/api/inventar', {...item, checklist: checklistTexts});
+    if(fotoDataUrl){
+      const updated = await api('POST', `/api/inventar/${encodeURIComponent(item.inv)}/photo`, {dataUrl: fotoDataUrl});
+      const stateItem = byInv(item.inv);
+      if(stateItem) stateItem.foto = updated.foto;
+      render();
+    }
   } catch(e){
     state.inventar = state.inventar.filter(i=>i.inv!==item.inv);
     showToast(e.message==='duplicate inventory number' ? t('toast_dup_inv',{inv:item.inv}) : t('toast_sync_failed'));
@@ -2324,6 +2723,98 @@ async function doAddSubcat(parentId){
     render();
   } catch(e){ showToast(t('toast_sync_failed')); }
 }
+async function doDeleteRental(id){
+  if(!confirm(t('confirm_delete_rental'))) return;
+  state.vermietungen = state.vermietungen.filter(v=>v.id!==id);
+  closeSheets();
+  showToast(t('toast_rental_deleted'));
+  try { await api('DELETE', `/api/vermietungen/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doDeleteItem(inv){
+  if(!confirm(t('confirm_delete_item'))) return;
+  state.inventar = state.inventar.filter(i=>i.inv!==inv);
+  closeSheets();
+  showToast(t('toast_item_deleted',{inv}));
+  try { await api('DELETE', `/api/inventar/${encodeURIComponent(inv)}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+
+async function doAddChecklistItem(inv, text){
+  const item = byInv(inv);
+  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked})), {text, checked:false}];
+  try {
+    const updated = await api('PUT', `/api/inventar/${encodeURIComponent(inv)}/checklist`, {items});
+    item.checklist = updated.checklist;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+
+async function doDeleteCat(id){
+  if(!confirm(t('confirm_delete_cat'))) return;
+  try {
+    await api('DELETE', `/api/categories/${id}`);
+    state.categories = state.categories.filter(c=>c.id!==id);
+    render();
+  } catch(e){
+    showToast(e.message==='category has subcategories -- delete or move those first' ? t('toast_cat_has_children')
+      : e.message==='category still has items assigned -- move or delete those first' ? t('toast_cat_has_items')
+      : e.message==='category still has tags -- delete those first' ? t('toast_cat_has_tags')
+      : t('toast_sync_failed'));
+  }
+}
+async function doAddTag(catId, code, name){
+  code = (code||'').trim(); name = (name||'').trim();
+  if(!code || !name) return;
+  try {
+    const tag = await api('POST', '/api/tags', {code, name, cat:catId});
+    state.tags.push(tag);
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+async function doDeleteTag(id){
+  if(!confirm(t('confirm_delete_tag'))) return;
+  state.tags = state.tags.filter(tg=>tg.id!==id);
+  state.inventar.forEach(i=>{ if(i.tag===id) i.tag=null; });
+  render();
+  try { await api('DELETE', `/api/tags/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+async function doAddTestType(){
+  const inp = document.getElementById('new-test-type');
+  if(!inp || !inp.value.trim()) return;
+  const name = inp.value.trim();
+  try {
+    const tt = await api('POST', '/api/test-types', {name, items:[]});
+    state.testTypes.push(tt);
+    ui.expandedTestTypes.add(tt.id);
+    inp.value = '';
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+async function doDeleteTestType(id){
+  if(!confirm(t('confirm_delete_test_type'))) return;
+  state.testTypes = state.testTypes.filter(tt=>tt.id!==id);
+  render();
+  try { await api('DELETE', `/api/test-types/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+}
+async function doAddTestTypeItem(ttId, text){
+  const tt = state.testTypes.find(x=>x.id===ttId);
+  const items = [...tt.items.map(it=>it.text), text];
+  try {
+    const updated = await api('PATCH', `/api/test-types/${ttId}`, {items});
+    tt.items = updated.items;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+async function doRemoveTestTypeItem(ttId, itemId){
+  const tt = state.testTypes.find(x=>x.id===ttId);
+  const items = tt.items.filter(it=>it.id!==itemId).map(it=>it.text);
+  try {
+    const updated = await api('PATCH', `/api/test-types/${ttId}`, {items});
+    tt.items = updated.items;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+
 async function doAddStandort(){
   const inp = document.getElementById('new-standort');
   if(!inp || !inp.value.trim()) return;
