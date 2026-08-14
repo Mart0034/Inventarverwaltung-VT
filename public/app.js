@@ -24,7 +24,6 @@ const STRINGS = {
   de: {
     tab_start:'Start', tab_inventar:'Inventar', tab_pruefungen:'Prüfungen', tab_vermietungen:'Vermietung', tab_mehr:'Mehr',
     title_start:'Start', title_inventar:'Inventar', title_pruefungen:'Prüfungen', title_vermietungen:'Vermietungen', title_einstellungen:'Einstellungen',
-    concept:'Konzept',
     start_welcome:'Willkommen zurück',
     start_sub:'{date} · {n} Artikel im Fundus',
     stat_total:'Gesamt', stat_available:'Verfügbar', stat_rented:'Vermietet', stat_due:'Prüfung fällig',
@@ -101,7 +100,6 @@ const STRINGS = {
   en: {
     tab_start:'Home', tab_inventar:'Inventory', tab_pruefungen:'Checks', tab_vermietungen:'Rentals', tab_mehr:'More',
     title_start:'Home', title_inventar:'Inventory', title_pruefungen:'Inspections', title_vermietungen:'Rentals', title_einstellungen:'Settings',
-    concept:'Concept',
     start_welcome:'Welcome back',
     start_sub:'{date} · {n} items in Fundus',
     stat_total:'Total', stat_available:'Available', stat_rented:'Rented', stat_due:'Checks due',
@@ -350,9 +348,12 @@ function render(){
 
   app.innerHTML = `
     <div class="app-shell">
-      ${topbar()}
-      <div class="screen">${screenBody()}</div>
-      ${fab()}
+      ${sidebar()}
+      <div class="main-col">
+        ${topbar()}
+        <div class="screen">${screenBody()}</div>
+        ${fab()}
+      </div>
       ${ui.toast?`<div class="toast">${esc(ui.toast)}</div>`:''}
       ${tabbar()}
       ${ui.sheetStack.length?sheetOverlay():''}
@@ -372,34 +373,50 @@ function screenTitle(){
   return t('title_'+ui.tab);
 }
 
+const NAV_TABS = [
+  ['start','grid','tab_start'],
+  ['inventar','crate','tab_inventar'],
+  ['pruefungen','shield','tab_pruefungen'],
+  ['vermietungen','calendar','tab_vermietungen'],
+  ['einstellungen','gear','tab_mehr'],
+];
+
 function topbar(){
   return `
   <header class="topbar">
     <button class="brand" data-action="tab" data-tab="start" aria-label="Start">
-      <span class="brand-mark">JR</span>
+      <img class="brand-mark" src="/icons/brand-mark.png" alt="">
     </button>
     <div class="topbar-title">${screenTitle()}</div>
   </header>`;
 }
 
 function tabbar(){
-  const tabs = [
-    ['start','grid','tab_start'],
-    ['inventar','crate','tab_inventar'],
-    ['pruefungen','shield','tab_pruefungen'],
-    ['vermietungen','calendar','tab_vermietungen'],
-    ['einstellungen','gear','tab_mehr'],
-  ];
-  return `<nav class="tabbar">${tabs.map(([id,icon,key])=>`
+  return `<nav class="tabbar">${NAV_TABS.map(([id,icon,key])=>`
     <button class="tab-btn ${ui.tab===id?'active':''}" data-action="tab" data-tab="${id}">
       ${ICONS[icon]}<span>${t(key)}</span>
     </button>`).join('')}</nav>`;
 }
 
+function sidebar(){
+  return `
+  <nav class="sidebar">
+    <button class="sidebar-brand" data-action="tab" data-tab="start" aria-label="Start">
+      <img class="brand-mark" src="/icons/brand-mark.png" alt=""><span class="sidebar-brand-name">Fundus</span>
+    </button>
+    <div class="sidebar-nav">
+      ${NAV_TABS.map(([id,icon,key])=>`
+        <button class="sidebar-nav-btn ${ui.tab===id?'active':''}" data-action="tab" data-tab="${id}">
+          ${ICONS[icon]}<span>${t(key)}</span>
+        </button>`).join('')}
+    </div>
+  </nav>`;
+}
+
 function fab(){
   if(ui.sheetStack.length) return '';
-  if(ui.tab==='inventar') return `<button class="fab" data-action="open-new-item" aria-label="${t('quick_new_item')}">${ICONS.plus}</button>`;
-  if(ui.tab==='vermietungen') return `<button class="fab" data-action="open-new-rental" aria-label="${t('quick_new_rental')}">${ICONS.plus}</button>`;
+  if(ui.tab==='inventar') return `<button class="fab" data-action="open-new-item" aria-label="${t('quick_new_item')}">${ICONS.plus}<span class="fab-label">${t('quick_new_item')}</span></button>`;
+  if(ui.tab==='vermietungen') return `<button class="fab" data-action="open-new-rental" aria-label="${t('quick_new_rental')}">${ICONS.plus}<span class="fab-label">${t('quick_new_rental')}</span></button>`;
   return '';
 }
 
@@ -1024,7 +1041,7 @@ function exportPackingListPdf(v){
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1c2036; margin: 0; padding: 24px; }
   .letterhead { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
-  .mark { width: 28px; height: 28px; border-radius: 50%; background: #364786; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; }
+  .mark { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; flex: none; }
   .brand { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
   h1 { font-size: 20px; margin: 0 0 3px; letter-spacing: -.01em; }
   .sub { color: #5c6379; font-size: 13px; margin: 0 0 20px; }
@@ -1042,7 +1059,7 @@ function exportPackingListPdf(v){
 </style>
 </head>
 <body>
-  <div class="letterhead"><span class="mark">JR</span><span class="brand">Fundus</span></div>
+  <div class="letterhead"><img class="mark" src="/icons/brand-mark.png" alt=""><span class="brand">Fundus</span></div>
   <h1>${esc(t('sheet_packlist'))}</h1>
   <p class="sub">${esc(v.kunde)}</p>
   <div class="meta">

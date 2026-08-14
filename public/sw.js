@@ -3,7 +3,7 @@ const SHELL_FILES = [
   '/', '/index.html', '/styles.css', '/app.js', '/manifest.json',
   '/fonts/oswald-700.woff2', '/fonts/plexsans-400.woff2', '/fonts/plexsans-600.woff2',
   '/fonts/plexmono-400.woff2', '/fonts/plexmono-600.woff2',
-  '/icons/icon-192.png', '/icons/icon-512.png',
+  '/icons/icon-192.png', '/icons/icon-512.png', '/icons/brand-mark.png',
 ];
 
 self.addEventListener('install', (event) => {
