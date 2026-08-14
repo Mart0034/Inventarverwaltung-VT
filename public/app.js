@@ -77,6 +77,11 @@ const STRINGS = {
     btn_export_pdf:'Als PDF exportieren',
     toast_popup_blocked:'Popup blockiert – bitte Popups für diese Seite erlauben',
     pdf_days:'Tage',
+    field_status_manual:'Status manuell ändern',
+    field_status_manual_hint:'Zum Beispiel um eine versehentlich abgeschlossene Vermietung wieder zu öffnen.',
+    rental_status_Reserviert:'Reserviert',
+    rental_status_Aktiv:'Aktiv',
+    rental_status_Abgeschlossen:'Abgeschlossen',
     return_intro:'Zustand je Artikel bei Rückgabe festlegen.', btn_complete_return:'Rücknahme abschließen',
     toast_need_inv_bez:'Bitte Inventarnummer und Bezeichnung angeben',
     toast_dup_inv:'Inventarnummer {inv} existiert bereits',
@@ -148,6 +153,11 @@ const STRINGS = {
     btn_export_pdf:'Export as PDF',
     toast_popup_blocked:'Popup blocked – please allow popups for this site',
     pdf_days:'days',
+    field_status_manual:'Change status manually',
+    field_status_manual_hint:'e.g. to reopen a rental that was closed by mistake.',
+    rental_status_Reserviert:'Reserved',
+    rental_status_Aktiv:'Active',
+    rental_status_Abgeschlossen:'Completed',
     return_intro:'Set the condition of each item on return.', btn_complete_return:'Complete return',
     toast_need_inv_bez:'Please enter an inventory number and name',
     toast_dup_inv:'Inventory number {inv} already exists',
@@ -523,6 +533,7 @@ function rentalStatusPill(status){
   const map = {Reserviert:'pill-warn',Aktiv:'pill-rented',Abgeschlossen:'pill-off'};
   return map[status]||'pill-off';
 }
+function rentalStatusLabel(status){ return t('rental_status_'+status) || status; }
 
 function screenVermietungen(){
   const list = [...state.vermietungen].sort((a,b)=> a.status==='Abgeschlossen'?1:-1);
@@ -537,7 +548,7 @@ function screenVermietungen(){
             <span class="ic-title">${esc(v.kunde)}</span>
             <span class="ic-meta">${t('verm_meta',{n:v.items.length,price:fmtEuro(rentalTotal(v))})}</span>
           </div>
-          <span class="pill ${rentalStatusPill(v.status)}">${v.status}</span>
+          <span class="pill ${rentalStatusPill(v.status)}">${rentalStatusLabel(v.status)}</span>
         </button>
       `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_verm')}</p></div>`}
     </div>
@@ -863,7 +874,7 @@ function rentalDetailSheet(v){
     <div class="detail-grid">
       <div class="detail-item"><span class="dl-label">${t('label_period')}</span><span class="dl-value mono">${fmtDate(v.von)} – ${fmtDate(v.bis)}</span></div>
       <div class="detail-item"><span class="dl-label">${t('field_miettage')}</span><span class="dl-value mono">${days}</span></div>
-      <div class="detail-item"><span class="dl-label">${t('field_status')}</span><span class="dl-value"><span class="pill ${rentalStatusPill(v.status)}">${v.status}</span></span></div>
+      <div class="detail-item"><span class="dl-label">${t('field_status')}</span><span class="dl-value"><span class="pill ${rentalStatusPill(v.status)}">${rentalStatusLabel(v.status)}</span></span></div>
       <div class="detail-item"><span class="dl-label">${t('field_total')}</span><span class="dl-value mono">${fmtEuro(total)}</span></div>
     </div>
     <div class="divider"></div>
@@ -883,6 +894,16 @@ function rentalDetailSheet(v){
     </div>
     ${v.status==='Reserviert'? `<div class="btn-row"><button class="btn btn-primary" data-action="rental-start" data-id="${v.id}">${t('btn_mark_handed_out')}</button></div>`:''}
     ${v.status==='Aktiv'? `<div class="btn-row"><button class="btn btn-primary" data-action="open-return" data-id="${v.id}">${t('btn_record_return')}</button></div>`:''}
+    <div class="divider"></div>
+    <div class="field">
+      <label>${t('field_status_manual')}</label>
+      <select data-action="edit-rental-status" data-id="${v.id}">
+        <option value="Reserviert" ${v.status==='Reserviert'?'selected':''}>${t('rental_status_Reserviert')}</option>
+        <option value="Aktiv" ${v.status==='Aktiv'?'selected':''}>${t('rental_status_Aktiv')}</option>
+        <option value="Abgeschlossen" ${v.status==='Abgeschlossen'?'selected':''}>${t('rental_status_Abgeschlossen')}</option>
+      </select>
+      <span class="field-hint">${t('field_status_manual_hint')}</span>
+    </div>
   `;
 }
 
@@ -936,18 +957,29 @@ function packlistSheet(v){
 function exportPackingListPdf(v){
   const days = rentalDays(v.von,v.bis);
   const todayIso = new Date().toISOString().slice(0,10);
-  const rows = v.items.map(inv=>{
+
+  // Group items by their category, preserving first-appearance order.
+  const groups = [];
+  const groupIndex = {};
+  v.items.forEach(inv=>{
     const it = byInv(inv);
-    if(!it) return '';
-    const done = !!v.pack[inv];
-    return `
-      <tr>
-        <td class="chk"><span class="box ${done?'checked':''}"></span></td>
-        <td class="mono">${esc(it.inv)}</td>
-        <td>${esc(it.bez)}</td>
-        <td class="mono">${esc(it.serien)||'–'}</td>
-      </tr>`;
-  }).join('');
+    if(!it) return;
+    const node = catNode(it.cat);
+    const name = node ? node.name : '';
+    if(!(name in groupIndex)){
+      groupIndex[name] = groups.length;
+      groups.push({ name, items: [] });
+    }
+    groups[groupIndex[name]].items.push(it);
+  });
+
+  const rows = groups.map((g,gi)=> g.items.map((it,idx)=>`
+      <tr class="${idx===0?'group-start':''}">
+        ${idx===0? `<td class="cat" rowspan="${g.items.length}">${esc(g.name)}</td>` : ''}
+        <td class="item">${esc(it.bez)}</td>
+        <td class="code mono">${esc(it.inv)}</td>
+      </tr>`).join('')
+  ).join('');
 
   const html = `<!doctype html>
 <html lang="${ui.lang}">
@@ -955,25 +987,29 @@ function exportPackingListPdf(v){
 <meta charset="utf-8">
 <title>${esc(t('sheet_packlist'))} – ${esc(v.kunde)}</title>
 <style>
-  @page { margin: 18mm 16mm; }
+  @page { margin: 20mm 18mm; }
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #1c2036; margin: 0; padding: 24px; }
-  h1 { font-size: 21px; margin: 0 0 3px; letter-spacing: -.01em; }
-  .sub { color: #5c6379; font-size: 13px; margin: 0 0 22px; }
-  .meta { display: flex; gap: 36px; margin-bottom: 22px; }
+  .letterhead { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .mark { width: 28px; height: 28px; border-radius: 50%; background: #364786; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; }
+  .brand { font-weight: 700; font-size: 14px; letter-spacing: -.01em; }
+  h1 { font-size: 20px; margin: 0 0 3px; letter-spacing: -.01em; }
+  .sub { color: #5c6379; font-size: 13px; margin: 0 0 20px; }
+  .meta { display: flex; gap: 36px; margin-bottom: 26px; }
   .meta div span { display:block; color:#5c6379; font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
   .meta div b { font-size: 13.5px; font-weight: 600; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; border-bottom: 2px solid #1c2036; padding: 8px 6px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color:#5c6379; font-weight: 600; }
-  td { padding: 10px 6px; border-bottom: 1px solid #dadfea; vertical-align: middle; }
-  td.mono, th.mono { font-family: ui-monospace, 'SF Mono', Consolas, monospace; }
-  td.chk, th.chk { width: 26px; }
-  .box { display:inline-block; width:13px; height:13px; border:1.6px solid #1c2036; border-radius:3px; }
-  .box.checked { background:#364786; border-color:#364786; }
-  footer { margin-top: 26px; font-size: 10.5px; color: #9aa1b5; }
+  td { padding: 4px 8px 4px 0; vertical-align: top; }
+  td.cat { font-weight: 700; font-size: 13.5px; width: 32%; padding-right: 18px; }
+  td.item { padding-top: 5px; padding-bottom: 5px; }
+  td.code { text-align: right; color: #5c6379; white-space: nowrap; padding-right: 0; padding-top: 5px; padding-bottom: 5px; }
+  tr.group-start td { padding-top: 16px; border-top: 1px solid #dadfea; }
+  tr.group-start:first-child td { border-top: none; padding-top: 4px; }
+  footer { margin-top: 30px; font-size: 10.5px; color: #9aa1b5; }
 </style>
 </head>
 <body>
+  <div class="letterhead"><span class="mark">JR</span><span class="brand">Fundus</span></div>
   <h1>${esc(t('sheet_packlist'))}</h1>
   <p class="sub">${esc(v.kunde)}</p>
   <div class="meta">
@@ -981,12 +1017,6 @@ function exportPackingListPdf(v){
     <div><span>${esc(t('label_period'))}</span><b>${fmtDate(v.von)} – ${fmtDate(v.bis)} (${days} ${esc(t('pdf_days'))})</b></div>
   </div>
   <table>
-    <thead><tr>
-      <th class="chk"></th>
-      <th class="mono">${esc(t('field_invnum'))}</th>
-      <th>${esc(t('field_bez'))}</th>
-      <th>${esc(t('field_serien'))}</th>
-    </tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <footer>Fundus · ${fmtDate(todayIso)}</footer>
@@ -1192,6 +1222,13 @@ function onChange(e){
     const key = t2.dataset.key;
     state.schwellen[key] = parseInt(t2.value,10)||0;
     api('PATCH', '/api/settings', {[key]: state.schwellen[key]}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='edit-rental-status'){
+    const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+    v.status = t2.value;
+    render();
+    api('PATCH', `/api/vermietungen/${v.id}`, {status: v.status}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
 }

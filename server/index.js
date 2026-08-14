@@ -129,6 +129,19 @@ app.patch('/api/inventar/:inv', (req, res) => {
 
 /* ---- vermietungen ---- */
 
+const VERMIETUNG_STATUSES = ['Reserviert', 'Aktiv', 'Abgeschlossen'];
+
+app.patch('/api/vermietungen/:id', (req, res) => {
+  const v = db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(req.params.id);
+  if (!v) return res.status(404).json({ error: 'not found' });
+  const { status } = req.body;
+  if (!status || !VERMIETUNG_STATUSES.includes(status)) {
+    return res.status(400).json({ error: 'invalid status' });
+  }
+  db.prepare('UPDATE vermietungen SET status = ? WHERE id = ?').run(status, v.id);
+  res.json(rentalRow(db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(v.id)));
+});
+
 app.post('/api/vermietungen', (req, res) => {
   const { kunde, von, bis, items } = req.body;
   if (!kunde || !von || !bis || !Array.isArray(items) || items.length === 0) {
