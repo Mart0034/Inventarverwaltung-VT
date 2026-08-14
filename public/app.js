@@ -1452,12 +1452,15 @@ function pickFlightcaseSheet(s){
   // Guard against trivial cycles: can't pack an item into itself or into
   // something it already directly contains.
   const excluded = new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
+  // Flightcases can only be items filed under category 006 (Cases & Transport).
+  const casesRoot = catRoots().find(r=>r.code==='006');
+  const rootChildren = casesRoot ? catChildren(casesRoot.id) : [];
   return `
     <button class="item-card" data-action="assign-flightcase" data-inv="${currentInv}" data-case="">
       <div class="ic-body"><span class="ic-title">${t('opt_no_flightcase')}</span></div>
     </button>
     <div class="cat-tree">
-      ${catRoots().map(r=>renderFlightcasePickCatNode(r,0,currentInv,excluded)).join('')}
+      ${rootChildren.map(r=>renderFlightcasePickCatNode(r,0,currentInv,excluded)).join('')}
     </div>
   `;
 }
