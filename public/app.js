@@ -46,9 +46,12 @@ const STRINGS = {
     add_subcat:'+ Unterkategorie', add_maincat:'+ Hauptgruppe hinzufügen',
     standorte_title:'Standorte', standort_placeholder:'Neuer Standort …', add:'Hinzufügen',
     thresh_title:'Prüf-Warnschwellen', thresh_yellow:'Gelb ab (Tage vor Fälligkeit)', thresh_orange:'Orange ab (Tage vor Fälligkeit)',
+    pin_title:'Zugangs-PIN', pin_p:'Diese PIN schützt die ganze Website. Einmal im Browser entsperrt, bleibt der Zugriff gespeichert.',
+    pin_field:'4-stellige PIN', pin_lock_now:'Jetzt sperren (dieses Gerät)',
+    toast_pin_invalid:'PIN muss genau 4 Ziffern haben', toast_pin_saved:'PIN geändert',
     lang_title:'Sprache',
     data_title:'Daten & Sicherheit',
-    data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung. Aktuell ohne Login geschützt — jeder mit dem Link hat Zugriff.',
+    data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung und durch eine PIN geschützt (siehe „Zugangs-PIN" unten).',
     backup_title:'Datensicherung',
     backup_p:'Tägliches automatisches Backup in ein privates GitHub-Repository, eingerichtet über eine geplante GitHub Action. Dieser Schlüssel schützt den Backup-Zugriff — nur zusammen mit der Action einrichten, nicht öffentlich teilen.',
     backup_token_label:'Backup-Schlüssel',
@@ -163,9 +166,12 @@ const STRINGS = {
     add_subcat:'+ Subcategory', add_maincat:'+ Add category',
     standorte_title:'Locations', standort_placeholder:'New location …', add:'Add',
     thresh_title:'Inspection warning thresholds', thresh_yellow:'Yellow from (days before due)', thresh_orange:'Orange from (days before due)',
+    pin_title:'Access PIN', pin_p:'This PIN protects the whole site. Once unlocked in a browser, access stays remembered.',
+    pin_field:'4-digit PIN', pin_lock_now:'Lock now (this device)',
+    toast_pin_invalid:'PIN must be exactly 4 digits', toast_pin_saved:'PIN changed',
     lang_title:'Language',
     data_title:'Data & security',
-    data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection. Currently unprotected by a login — anyone with the link has access.',
+    data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection and protected by a PIN (see "Access PIN" below).',
     backup_title:'Backups',
     backup_p:'Automatic daily backup to a private GitHub repository, set up via a scheduled GitHub Action. This key protects backup access — set it up together with the Action only, don\'t share it publicly.',
     backup_token_label:'Backup key',
@@ -863,6 +869,16 @@ function screenEinstellungen(){
         <label>${t('thresh_orange')}</label>
         <input type="number" min="1" class="mono" value="${state.schwellen.orange}" data-action="set-schwelle" data-key="orange" />
       </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('pin_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('pin_p')}</p>
+      <div class="field">
+        <label>${t('pin_field')}</label>
+        <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="mono" value="${esc(state.pin)}" data-action="set-pin" />
+      </div>
+      <button class="btn btn-secondary" data-action="lock-now">${t('pin_lock_now')}</button>
     </div>
 
     <div class="settings-card">
@@ -1873,6 +1889,9 @@ function onClick(e){
       doSaveNewBundle(); break;
     case 'open-data-explorer':
       pushSheet({type:'data-explorer'}); break;
+    case 'lock-now':
+      api('POST', '/api/logout').finally(()=>location.reload());
+      break;
   }
 }
 
@@ -2004,6 +2023,15 @@ function onChange(e){
     const key = t2.dataset.key;
     state.schwellen[key] = parseInt(t2.value,10)||0;
     api('PATCH', '/api/settings', {[key]: state.schwellen[key]}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='set-pin'){
+    const value = t2.value.trim();
+    if(!/^\d{4}$/.test(value)){ showToast(t('toast_pin_invalid')); render(); return; }
+    state.pin = value;
+    api('PATCH', '/api/settings', {pin: value})
+      .then(()=>showToast(t('toast_pin_saved')))
+      .catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
   if(action==='edit-rental-status'){

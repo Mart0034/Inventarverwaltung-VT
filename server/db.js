@@ -93,6 +93,10 @@ ensureColumn('inventar', 'menge', "menge INTEGER NOT NULL DEFAULT 1");
 ensureColumn('inventar', 'foto', "foto TEXT DEFAULT ''");
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 
+// Same idea as ensureColumn, but for a settings row -- installs that
+// existed before the PIN gate was added won't have one yet.
+db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('pin', '1234')").run();
+
 // Older rows store vermietungen.items as a plain JSON array of inv strings
 // (["004.02.001", ...]); newer code needs [{inv, menge}, ...] to support
 // quantity items. Normalize once so every row is in the new shape.

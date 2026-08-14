@@ -39,6 +39,164 @@ function getOrCreateBackupToken() {
 }
 const BACKUP_TOKEN = getOrCreateBackupToken();
 
+/* ---- PIN gate ----
+ * Single shared 4-digit PIN, no user accounts. A correct PIN sets a
+ * long-lived cookie holding a random per-install access token (kept
+ * separate from the PIN itself, so changing the PIN later doesn't need to
+ * invalidate already-unlocked browsers). Everything except the login
+ * endpoint, the backup endpoint (already gated by its own bearer token,
+ * used by an unattended GitHub Action with no browser/cookie), and the
+ * small set of branding icons used on the login page itself requires this
+ * cookie to match.
+ */
+const ACCESS_COOKIE = 'fundus_access';
+const ACCESS_TOKEN_FILE = path.join(db.DATA_DIR, 'access-token.txt');
+function getOrCreateAccessToken() {
+  if (fs.existsSync(ACCESS_TOKEN_FILE)) {
+    return fs.readFileSync(ACCESS_TOKEN_FILE, 'utf8').trim();
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(ACCESS_TOKEN_FILE, token);
+  return token;
+}
+const ACCESS_TOKEN = getOrCreateAccessToken();
+
+function getPin() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('pin');
+  return row ? row.value : '1234';
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie;
+  const out = {};
+  if (!header) return out;
+  header.split(';').forEach((part) => {
+    const idx = part.indexOf('=');
+    if (idx === -1) return;
+    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+  });
+  return out;
+}
+
+// Slows down PIN guessing (10,000 combinations is trivial to script through
+// with no throttling at all) without needing per-IP infrastructure -- a
+// global failure counter that makes each wrong guess progressively slower.
+let failedPinAttempts = 0;
+let lastFailedPinAt = 0;
+function pinBackoffMs() {
+  if (Date.now() - lastFailedPinAt > 5 * 60 * 1000) failedPinAttempts = 0;
+  return Math.min(8000, failedPinAttempts * 400);
+}
+
+const LOGIN_PAGE_HTML = `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fundus – Zugang</title>
+<style>
+  :root{color-scheme:light dark;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+    background:#10131C;color:#f2f4f9;padding:20px;
+  }
+  .card{width:100%;max-width:320px;background:#181c28;border:1px solid #2a3040;border-radius:16px;padding:28px 24px;text-align:center;}
+  .mark{width:52px;height:52px;border-radius:50%;object-fit:cover;margin-bottom:14px;}
+  h1{font-size:1.05rem;margin:0 0 4px;}
+  p{color:#9aa1b5;font-size:.84rem;margin:0 0 22px;}
+  input{
+    width:100%;font-size:1.6rem;letter-spacing:.5rem;text-align:center;
+    padding:12px 10px;border-radius:10px;border:1px solid #2a3040;background:#10131C;color:#fff;
+    font-family:'SFMono-Regular',Consolas,monospace;margin-bottom:14px;
+  }
+  input:focus{outline:2px solid #364786;}
+  button{
+    width:100%;padding:12px;border-radius:10px;border:none;background:#364786;color:#fff;
+    font-size:.92rem;font-weight:600;cursor:pointer;
+  }
+  button:disabled{opacity:.5;cursor:default;}
+  .error{color:#e8746a;font-size:.8rem;margin:10px 0 0;min-height:1em;}
+</style>
+</head>
+<body>
+  <form class="card" id="f">
+    <img class="mark" src="/icons/brand-mark.png" alt="">
+    <h1>Fundus</h1>
+    <p>Bitte PIN eingeben</p>
+    <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autofocus />
+    <button type="submit">Entsperren</button>
+    <p class="error" id="err"></p>
+  </form>
+<script>
+  const f = document.getElementById('f');
+  const pinInput = document.getElementById('pin');
+  const err = document.getElementById('err');
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    err.textContent = '';
+    const pin = pinInput.value.trim();
+    if(!pin) return;
+    const btn = f.querySelector('button');
+    btn.disabled = true;
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ pin }),
+      });
+      if(res.ok){ location.reload(); return; }
+      err.textContent = 'Falsche PIN.';
+      pinInput.value = '';
+      pinInput.focus();
+    } catch(e2){
+      err.textContent = 'Verbindung fehlgeschlagen.';
+    }
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>`;
+
+app.use((req, res, next) => {
+  if (req.path === '/api/login' || req.path === '/api/backup' || req.path.startsWith('/icons/')) {
+    return next();
+  }
+  const cookies = parseCookies(req);
+  if (cookies[ACCESS_COOKIE] === ACCESS_TOKEN) return next();
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'locked' });
+  }
+  res.status(401).type('html').send(LOGIN_PAGE_HTML);
+});
+
+app.post('/api/login', (req, res) => {
+  const delay = pinBackoffMs();
+  const { pin } = req.body || {};
+  setTimeout(() => {
+    if (typeof pin !== 'string' || pin !== getPin()) {
+      failedPinAttempts += 1;
+      lastFailedPinAt = Date.now();
+      return res.status(401).json({ error: 'wrong pin' });
+    }
+    failedPinAttempts = 0;
+    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    res.cookie(ACCESS_COOKIE, ACCESS_TOKEN, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: isHttps,
+      maxAge: 1000 * 60 * 60 * 24 * 365,
+    });
+    res.json({ ok: true });
+  }, delay);
+});
+
+app.post('/api/logout', (req, res) => {
+  res.clearCookie(ACCESS_COOKIE);
+  res.json({ ok: true });
+});
+
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
 const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
@@ -62,12 +220,13 @@ function getFullState() {
   const standorte = db.prepare('SELECT name FROM standorte ORDER BY sort_order').all().map(r => r.name);
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
-  settingsRows.forEach(r => { schwellen[r.key] = parseInt(r.value, 10); });
+  let pin = '1234';
+  settingsRows.forEach(r => { if (r.key === 'pin') pin = r.value; else schwellen[r.key] = parseInt(r.value, 10); });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
   const vermietungen = db.prepare('SELECT * FROM vermietungen').all().map(rentalRow);
   const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
-  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, inventar, vermietungen, customers, bundles, backupToken: BACKUP_TOKEN };
+  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, inventar, vermietungen, customers, bundles, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
@@ -142,10 +301,15 @@ app.patch('/api/settings', (req, res) => {
   const upsert = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   if (req.body.gelb !== undefined) upsert.run('gelb', String(parseInt(req.body.gelb, 10) || 0));
   if (req.body.orange !== undefined) upsert.run('orange', String(parseInt(req.body.orange, 10) || 0));
+  if (req.body.pin !== undefined) {
+    if (!/^\d{4}$/.test(req.body.pin)) return res.status(400).json({ error: 'pin must be exactly 4 digits' });
+    upsert.run('pin', req.body.pin);
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
-  settingsRows.forEach(r => { schwellen[r.key] = parseInt(r.value, 10); });
-  res.json(schwellen);
+  let pin = '1234';
+  settingsRows.forEach(r => { if (r.key === 'pin') pin = r.value; else schwellen[r.key] = parseInt(r.value, 10); });
+  res.json({ ...schwellen, pin });
 });
 
 /* ---- inventar ---- */
