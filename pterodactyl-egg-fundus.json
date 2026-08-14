@@ -10,7 +10,8 @@
     "description": "Selbst gehostete Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik. Node.js + SQLite, keine externen Dienste.",
     "features": null,
     "docker_images": {
-        "Node 22 (Debian slim)": "node:22-slim"
+        "Node 22 (Pterodactyl yolks)": "ghcr.io/ptero-eggs/yolks:nodejs_22",
+        "Node 22 (Debian slim, may not work on all Wings setups)": "node:22-slim"
     },
     "file_denylist": [],
     "startup": "node index.js",
@@ -23,7 +24,7 @@
     "scripts": {
         "installation": {
             "script": "#!/bin/bash\nset -e\napt-get update -y\napt-get install -y git ca-certificates\n\ncd /mnt/server\n\nBRANCH=\"${GIT_BRANCH:-claude/equipment-rental-app-ideas-9gdoj4}\"\nREPO=\"${GIT_REPO:-https://github.com/Mart0034/Inventarverwaltung-VT.git}\"\n\necho \"Cloning ${REPO} (branch: ${BRANCH}) ...\"\nrm -rf /tmp/fundus-src\ngit clone --branch \"${BRANCH}\" --single-branch \"${REPO}\" /tmp/fundus-src\nrm -rf /tmp/fundus-src/.git\n\n# Overwrite app files with the latest version. The repo never contains a\n# data/ directory, so this step never touches the persisted database.\ncp -r /tmp/fundus-src/. /mnt/server/\nrm -rf /tmp/fundus-src\n\nnpm install --omit=dev\n\necho \"Installation abgeschlossen.\"\n",
-            "container": "node:22-slim",
+            "container": "ghcr.io/ptero-eggs/yolks:nodejs_22",
             "entrypoint": "bash"
         }
     },
