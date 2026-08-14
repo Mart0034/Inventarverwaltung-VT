@@ -81,8 +81,12 @@ const STRINGS = {
     backup_url_label:'Backup-Adresse',
     field_bez:'Bezeichnung', field_category:'Kategorie', change:'Ändern',
     field_hersteller:'Hersteller', field_modell:'Modell', field_serien:'Seriennummer', field_miete:'Mietpreis / Tag',
-    field_status:'Status', field_standort:'Standort', field_parent:'Übergeordnetes Objekt', opt_none:'Kein',
-    contains:'Enthält {n} Objekt(e):',
+    field_status:'Status', field_standort:'Standort',
+    field_flightcase:'Flightcase', opt_no_flightcase:'Kein Flightcase',
+    contains_title:'Enthält ({n})', contains_empty:'Enthält keine Objekte.',
+    contains_short:'{n} Objekt(e)', in_case_short:'in {inv}',
+    btn_add_to_case:'Objekt einpacken', flightcase_add_item_hint:'Objekt zum Einpacken auswählen.',
+    already_in_case:'Bereits eingepackt', sheet_pick_flightcase:'Flightcase wählen',
     section_pruef:'Prüfung', field_letzte:'Letzte Prüfung', field_naechste:'Nächste Prüfung',
     field_notiz:'Bemerkungen',
     sheet_new_item:'Neues Inventar', sheet_new_rental:'Neue Vermietung', sheet_return:'Rücknahme', sheet_packlist:'Packliste', sheet_pick_category:'Kategorie wählen',
@@ -228,8 +232,12 @@ const STRINGS = {
     backup_url_label:'Backup address',
     field_bez:'Name', field_category:'Category', change:'Change',
     field_hersteller:'Manufacturer', field_modell:'Model', field_serien:'Serial number', field_miete:'Rental price / day',
-    field_status:'Status', field_standort:'Location', field_parent:'Parent object', opt_none:'None',
-    contains:'Contains {n} object(s):',
+    field_status:'Status', field_standort:'Location',
+    field_flightcase:'Flightcase', opt_no_flightcase:'No flightcase',
+    contains_title:'Contains ({n})', contains_empty:'Contains no objects.',
+    contains_short:'{n} object(s)', in_case_short:'in {inv}',
+    btn_add_to_case:'Pack object', flightcase_add_item_hint:'Select an object to pack.',
+    already_in_case:'Already packed', sheet_pick_flightcase:'Select flightcase',
     section_pruef:'Inspection', field_letzte:'Last inspection', field_naechste:'Next inspection',
     field_notiz:'Notes',
     sheet_new_item:'New item', sheet_new_rental:'New rental', sheet_return:'Return', sheet_packlist:'Packing list', sheet_pick_category:'Select category',
@@ -650,15 +658,24 @@ function tagLabel(tagId){
   return tg ? catPathCodes(tg.cat)+'.'+tg.code : '';
 }
 
+function childCountOf(inv){ return state.inventar.filter(x=>x.parent===inv).length; }
+
 function itemCard(i, showPruef, selectable){
   const ps = pruefStatus(i);
   const cls = showPruef && ps ? ps : '';
-  const metaLine = showPruef && ps ? pruefLabel(i) : `${catPathNames(i.cat)} · ${esc(i.standort)}${i.tag?' · '+esc(tagLabel(i.tag)):''}`;
+  const caseItem = i.parent ? byInv(i.parent) : null;
+  const contentCount = childCountOf(i.inv);
+  const metaBits = [catPathNames(i.cat), esc(i.standort)];
+  if(i.tag) metaBits.push(esc(tagLabel(i.tag)));
+  if(caseItem) metaBits.push(t('in_case_short',{inv:caseItem.inv}));
+  const metaLine = showPruef && ps ? pruefLabel(i) : metaBits.join(' · ');
   const bulk = i.menge > 1;
   const avail = bulk ? availableTodayCount(i) : null;
   const pill = showPruef && ps
     ? `<span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span>`
-    : bulk
+    : contentCount>0
+      ? `<span class="pill pill-off">${t('contains_short',{n:contentCount})}</span>`
+      : bulk
       ? `<span class="pill ${avail>0?'pill-ok':'pill-rented'}">${t('available_of',{n:avail,m:i.menge})}</span>`
       : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
   const thumb = i.foto ? `<img class="ic-thumb" src="/photos/${encodeURIComponent(i.foto)}" alt="" loading="lazy" />` : '';
@@ -1135,6 +1152,8 @@ function sheetOverlay(){
   else if(s.type==='packlist'){ const v = state.vermietungen.find(x=>x.id===s.id); title = t('sheet_packlist'); body = packlistSheet(v); }
   else if(s.type==='return'){ const v = state.vermietungen.find(x=>x.id===s.id); title = t('sheet_return'); body = returnSheet(v); }
   else if(s.type==='pick-category'){ title = t('sheet_pick_category'); body = pickCategorySheet(s); }
+  else if(s.type==='pick-flightcase'){ title = t('sheet_pick_flightcase'); body = pickFlightcaseSheet(s); }
+  else if(s.type==='flightcase-add-item'){ const c = byInv(s.inv); title = c.bez; body = flightcaseAddItemSheet(s); }
   else if(s.type==='customers'){ title = t('sheet_customers'); body = customersSheet(); }
   else if(s.type==='customer'){ const c = state.customers.find(x=>x.id===s.id); title = c.name; body = customerDetailSheet(c); }
   else if(s.type==='new-customer'){ title = t('sheet_new_customer'); body = newCustomerSheet(); }
@@ -1220,33 +1239,39 @@ function itemDetailSheet(i){
         ${state.statusListe.map(s=>`<option value="${s}" ${s===i.status?'selected':''}>${statusLabel(s)}</option>`).join('')}
       </select>
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label>${t('field_standort')}</label>
-        <select data-action="edit-item" data-field="standort" data-inv="${i.inv}">
-          ${state.standorte.map(s=>`<option value="${s}" ${s===i.standort?'selected':''}>${s}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <label>${t('field_parent')}</label>
-        <select data-action="edit-item" data-field="parent" data-inv="${i.inv}">
-          <option value="">${t('opt_none')}</option>
-          ${state.inventar.filter(x=>x.inv!==i.inv).map(x=>`<option value="${x.inv}" ${x.inv===i.parent?'selected':''}>${x.inv} – ${esc(x.bez)}</option>`).join('')}
-        </select>
-      </div>
+    <div class="field">
+      <label>${t('field_standort')}</label>
+      <select data-action="edit-item" data-field="standort" data-inv="${i.inv}">
+        ${state.standorte.map(s=>`<option value="${s}" ${s===i.standort?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>${t('field_flightcase')}</label>
+      <button type="button" class="cat-picker-btn" data-action="open-flightcase-picker" data-inv="${i.inv}">
+        <span>${i.parent && byInv(i.parent) ? esc(byInv(i.parent).inv+' – '+byInv(i.parent).bez) : t('opt_no_flightcase')}</span>${ICONS.chevRight}
+      </button>
     </div>
     <div class="field">
       <label>${t('field_menge')}</label>
       <input type="number" min="1" data-action="edit-item" data-field="menge" data-inv="${i.inv}" value="${i.menge}" />
     </div>
 
+    <div class="divider"></div>
+    <div class="section-head"><h2>${t('contains_title',{n:children.length})}</h2></div>
     ${children.length? `
-      <div class="field-hint" style="margin-bottom:6px;">${t('contains',{n:children.length})}</div>
-      <div class="contains-list">
-        ${children.map(c=>`<div class="contains-row"><span class="mono">${c.inv}</span><span>${esc(c.bez)}</span></div>`).join('')}
+      <div class="card-list" style="margin-bottom:10px;">
+        ${children.map(c=>`
+          <button class="item-card" data-action="open-item" data-inv="${c.inv}">
+            <div class="ic-body">
+              <span class="inv-num mono">${c.inv}</span>
+              <span class="ic-title">${esc(c.bez)}</span>
+              <span class="ic-meta">${esc(c.standort)}</span>
+            </div>
+          </button>
+        `).join('')}
       </div>
-      <div class="divider"></div>
-    ` : ''}
+    ` : `<p class="field-hint" style="margin-bottom:10px;">${t('contains_empty')}</p>`}
+    <button class="btn btn-secondary" data-action="open-flightcase-add-item" data-inv="${i.inv}" style="margin-bottom:14px;">${t('btn_add_to_case')}</button>
 
     ${i.pruef ? `
       <div class="section-head" style="margin-top:4px;"><h2>${t('section_pruef')}</h2><span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span></div>
@@ -1420,6 +1445,97 @@ function newItemSheet(){
       <button class="btn btn-primary" data-action="save-new-item">${t('btn_create_item')}</button>
     </div>
   `;
+}
+
+function pickFlightcaseSheet(s){
+  const currentInv = s.inv;
+  // Guard against trivial cycles: can't pack an item into itself or into
+  // something it already directly contains.
+  const excluded = new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
+  return `
+    <button class="item-card" data-action="assign-flightcase" data-inv="${currentInv}" data-case="">
+      <div class="ic-body"><span class="ic-title">${t('opt_no_flightcase')}</span></div>
+    </button>
+    <div class="cat-tree">
+      ${catRoots().map(r=>renderFlightcasePickCatNode(r,0,currentInv,excluded)).join('')}
+    </div>
+  `;
+}
+
+function renderFlightcasePickCatNode(node, depth, currentInv, excluded){
+  const children = catChildren(node.id);
+  const ids = descendantCatIds(node.id);
+  const directItems = state.inventar.filter(i=>i.cat===node.id && !excluded.has(i.inv));
+  const totalCount = ids.reduce((sum,id)=>sum+state.inventar.filter(i=>i.cat===id && !excluded.has(i.inv)).length,0);
+  if(totalCount===0) return '';
+  const expanded = ui.expandedCats.has(node.id);
+  return `
+    <div class="cat-node" style="margin-left:${depth*10}px;">
+      <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
+        ${expanded?ICONS.chevDown:ICONS.chevRight}
+        <span class="cat-code mono">${esc(node.code)}</span>
+        <span class="cat-name">${esc(node.name)}</span>
+        <span class="cat-count">${totalCount}</span>
+      </button>
+      ${expanded ? `
+        <div class="cat-children">
+          ${directItems.map(i=>`
+            <button class="item-card" data-action="assign-flightcase" data-inv="${currentInv}" data-case="${i.inv}">
+              <div class="ic-body">
+                <span class="inv-num mono">${i.inv}</span>
+                <span class="ic-title">${esc(i.bez)}</span>
+                <span class="ic-meta">${esc(i.standort)}${childCountOf(i.inv)?' · '+esc(t('contains_short',{n:childCountOf(i.inv)})):''}</span>
+              </div>
+            </button>`).join('')}
+          ${children.map(c=>renderFlightcasePickCatNode(c,depth+1,currentInv,excluded)).join('')}
+        </div>
+      ` : ''}
+    </div>`;
+}
+
+function flightcaseAddItemSheet(s){
+  const caseInv = s.inv;
+  const existingChildren = new Set(state.inventar.filter(x=>x.parent===caseInv).map(x=>x.inv));
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('flightcase_add_item_hint')}</p>
+    <div class="cat-tree">
+      ${catRoots().map(r=>renderFlightcaseContentPickNode(r,0,caseInv,existingChildren)).join('')}
+    </div>
+  `;
+}
+
+function renderFlightcaseContentPickNode(node, depth, caseInv, existingChildren){
+  const children = catChildren(node.id);
+  const ids = descendantCatIds(node.id);
+  const directItems = state.inventar.filter(i=>i.cat===node.id && i.inv!==caseInv);
+  const totalCount = ids.reduce((sum,id)=>sum+state.inventar.filter(i=>i.cat===id && i.inv!==caseInv).length,0);
+  if(totalCount===0) return '';
+  const expanded = ui.expandedCats.has(node.id);
+  return `
+    <div class="cat-node" style="margin-left:${depth*10}px;">
+      <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
+        ${expanded?ICONS.chevDown:ICONS.chevRight}
+        <span class="cat-code mono">${esc(node.code)}</span>
+        <span class="cat-name">${esc(node.name)}</span>
+        <span class="cat-count">${totalCount}</span>
+      </button>
+      ${expanded ? `
+        <div class="cat-children">
+          ${directItems.map(i=>{
+            const already = existingChildren.has(i.inv);
+            return `
+            <button class="item-card" data-action="add-item-to-flightcase" data-case="${caseInv}" data-inv="${i.inv}" ${already?'disabled style="opacity:.4;"':''}>
+              <div class="ic-body">
+                <span class="inv-num mono">${i.inv}</span>
+                <span class="ic-title">${esc(i.bez)}</span>
+                <span class="ic-meta">${esc(i.standort)}</span>
+              </div>
+              ${already?`<span class="pill pill-off">${t('already_in_case')}</span>`:''}
+            </button>`; }).join('')}
+          ${children.map(c=>renderFlightcaseContentPickNode(c,depth+1,caseInv,existingChildren)).join('')}
+        </div>
+      ` : ''}
+    </div>`;
 }
 
 function pickCategorySheet(s){
@@ -2119,6 +2235,28 @@ function onClick(e){
       pushSheet({type:'pick-category', for:'draft'}); break;
     case 'open-cat-picker-item':
       pushSheet({type:'pick-category', for:'item', inv:t2.dataset.inv}); break;
+    case 'open-flightcase-picker':
+      pushSheet({type:'pick-flightcase', inv:t2.dataset.inv}); break;
+    case 'open-flightcase-add-item':
+      pushSheet({type:'flightcase-add-item', inv:t2.dataset.inv}); break;
+    case 'assign-flightcase': {
+      const item = byInv(t2.dataset.inv);
+      const caseInv = t2.dataset.case || null;
+      item.parent = caseInv;
+      if(caseInv){ const box = byInv(caseInv); if(box) item.standort = box.standort; }
+      popSheet();
+      api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {parent: caseInv, standort: item.standort}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'add-item-to-flightcase': {
+      const box = byInv(t2.dataset.case);
+      const item = byInv(t2.dataset.inv);
+      item.parent = box.inv;
+      item.standort = box.standort;
+      popSheet();
+      api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {parent: box.inv, standort: item.standort}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
     case 'pick-cat': {
       const top = topSheet();
       const id = t2.dataset.id;
