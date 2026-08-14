@@ -12,6 +12,16 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Fundus">
+<script>
+  // Applied synchronously, before the stylesheet, so a saved light/dark
+  // choice takes effect on first paint instead of flashing the system
+  // theme first. No value stored (or "system") means fall back to the
+  // prefers-color-scheme media query in styles.css, same as before.
+  (function(){
+    var t = localStorage.getItem('fundus-theme');
+    if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  })();
+</script>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>

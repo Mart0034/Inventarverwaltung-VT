@@ -50,6 +50,7 @@ const STRINGS = {
     pin_field:'4-stellige PIN', pin_lock_now:'Jetzt sperren (dieses Gerät)',
     toast_pin_invalid:'PIN muss genau 4 Ziffern haben', toast_pin_saved:'PIN geändert',
     lang_title:'Sprache',
+    theme_title:'Design', theme_system:'System', theme_light:'Hell', theme_dark:'Dunkel',
     data_title:'Daten & Sicherheit',
     data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung und durch eine PIN geschützt (siehe „Zugangs-PIN" unten).',
     backup_title:'Datensicherung',
@@ -173,6 +174,7 @@ const STRINGS = {
     pin_field:'4-digit PIN', pin_lock_now:'Lock now (this device)',
     toast_pin_invalid:'PIN must be exactly 4 digits', toast_pin_saved:'PIN changed',
     lang_title:'Language',
+    theme_title:'Theme', theme_system:'System', theme_light:'Light', theme_dark:'Dark',
     data_title:'Data & security',
     data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection and protected by a PIN (see "Access PIN" below).',
     backup_title:'Backups',
@@ -319,7 +321,13 @@ let ui = {
   expandedCats: new Set(),
   expandedSettingsCats: new Set(),
   lang: localStorage.getItem('fundus-lang') || 'de',
+  theme: localStorage.getItem('fundus-theme') || 'system',
 };
+
+function applyTheme(theme){
+  if(theme==='light' || theme==='dark') document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+}
 
 /* ---------- category tree helpers ---------- */
 
@@ -908,6 +916,15 @@ function screenEinstellungen(){
       <div class="lang-toggle">
         <button class="lang-btn ${ui.lang==='de'?'active':''}" data-action="set-lang" data-val="de">Deutsch</button>
         <button class="lang-btn ${ui.lang==='en'?'active':''}" data-action="set-lang" data-val="en">English</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('theme_title')}</h3>
+      <div class="lang-toggle">
+        <button class="lang-btn ${ui.theme==='system'?'active':''}" data-action="set-theme" data-val="system">${t('theme_system')}</button>
+        <button class="lang-btn ${ui.theme==='light'?'active':''}" data-action="set-theme" data-val="light">${t('theme_light')}</button>
+        <button class="lang-btn ${ui.theme==='dark'?'active':''}" data-action="set-theme" data-val="dark">${t('theme_dark')}</button>
       </div>
     </div>
 
@@ -1906,6 +1923,8 @@ function onClick(e){
     }
     case 'set-lang':
       ui.lang = t2.dataset.val; localStorage.setItem('fundus-lang', ui.lang); render(); break;
+    case 'set-theme':
+      ui.theme = t2.dataset.val; localStorage.setItem('fundus-theme', ui.theme); applyTheme(ui.theme); render(); break;
     case 'open-customers':
       pushSheet({type:'customers'}); break;
     case 'open-customer':
