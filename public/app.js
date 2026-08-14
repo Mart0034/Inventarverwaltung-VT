@@ -104,6 +104,8 @@ const STRINGS = {
     field_menge:'Bestand (Stückzahl)',
     bulk_return_note:'Sammelartikel — Bestand wird automatisch wieder freigegeben.',
     field_photo:'Foto', add_photo:'Foto hinzufügen', remove_photo:'Foto entfernen',
+    field_attachments:'Dateien', add_file:'Datei hinzufügen', remove_file:'Entfernen',
+    files_empty:'Keine Dateien angehängt.', toast_file_too_large:'„{name}" ist zu groß (max. 8 MB).',
     nav_timeline:'Zeitleiste', nav_customers:'Kunden', nav_bundles:'Sets', nav_stats:'Statistik',
     nav_tags:'Tags', nav_test_types:'Prüfarten',
     sheet_customers:'Kunden', sheet_new_customer:'Neuer Kunde',
@@ -255,6 +257,8 @@ const STRINGS = {
     field_menge:'Stock (quantity)',
     bulk_return_note:'Bulk item — stock is freed automatically again.',
     field_photo:'Photo', add_photo:'Add photo', remove_photo:'Remove photo',
+    field_attachments:'Files', add_file:'Add file', remove_file:'Remove',
+    files_empty:'No files attached.', toast_file_too_large:'"{name}" is too large (max 8 MB).',
     nav_timeline:'Timeline', nav_customers:'Customers', nav_bundles:'Sets', nav_stats:'Stats',
     nav_tags:'Tags', nav_test_types:'Test types',
     sheet_customers:'Customers', sheet_new_customer:'New customer',
@@ -411,6 +415,11 @@ function distinctHersteller(){
 function fmtDate(iso){ if(!iso) return '–'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function fmtDateLong(d){ return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{weekday:'long',day:'2-digit',month:'long'}); }
 function fmtEuro(n){ return (Math.round(n*100)/100).toLocaleString(ui.lang==='en'?'en-GB':'de-DE',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
+function fmtFileSize(bytes){
+  if(bytes < 1024) return bytes+' B';
+  if(bytes < 1024*1024) return (bytes/1024).toFixed(0)+' KB';
+  return (bytes/(1024*1024)).toFixed(1)+' MB';
+}
 function diffDays(iso){ const d=new Date(iso+'T00:00:00'); return Math.round((d-TODAY)/86400000); }
 function rentalDays(von,bis){ const a=new Date(von+'T00:00:00'), b=new Date(bis+'T00:00:00'); return Math.max(1, Math.round((b-a)/86400000)+1); }
 
@@ -1308,6 +1317,25 @@ function itemDetailSheet(i){
     </div>
 
     <div class="divider"></div>
+    <div class="section-head"><h2>${t('field_attachments')}</h2></div>
+    ${i.files.length? `
+      <div class="file-list" style="margin-bottom:10px;">
+        ${i.files.map(f=>`
+          <div class="file-row">
+            <a href="${f.url}" target="_blank" rel="noopener" class="file-link">
+              <span class="file-name">${esc(f.name)}</span><span class="file-size">${fmtFileSize(f.size)}</span>
+            </a>
+            <button class="link-btn" data-action="remove-item-file" data-inv="${i.inv}" data-id="${f.id}">${t('remove_file')}</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : `<p class="field-hint" style="margin-bottom:10px;">${t('files_empty')}</p>`}
+    <label class="photo-upload-btn" style="margin-bottom:14px;">
+      ${t('add_file')}
+      <input type="file" multiple data-action="upload-item-file" data-inv="${i.inv}" style="display:none;" />
+    </label>
+
+    <div class="divider"></div>
     <button class="btn btn-secondary" data-action="delete-item" data-inv="${i.inv}" style="color:var(--status-crit);">${t('btn_delete_item')}</button>
   `;
 }
@@ -1329,7 +1357,7 @@ function newItemSheet(){
     inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
     miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1,
-    testTypes:[], checklistExtra:[], fotoDataUrl:null
+    testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[]
   });
   const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
   return `
@@ -1397,6 +1425,12 @@ function newItemSheet(){
       </div>
       <div class="field"><label>${t('field_menge')}</label><input type="number" min="1" data-action="draft-item" data-field="menge" value="${esc(d.menge)}" /></div>
     </div>
+    <div class="field">
+      <label>${t('field_flightcase')}</label>
+      <button type="button" class="cat-picker-btn" data-action="open-flightcase-picker-draft">
+        <span>${d.flightcase && byInv(d.flightcase) ? esc(byInv(d.flightcase).inv+' – '+byInv(d.flightcase).bez) : t('opt_no_flightcase')}</span>${ICONS.chevRight}
+      </button>
+    </div>
     <div class="checkbox-field">
       <input type="checkbox" id="draft-pruef" data-action="draft-item" data-field="pruef" ${d.pruef?'checked':''} />
       <label for="draft-pruef">${t('check_pruefpflicht')}</label>
@@ -1441,6 +1475,23 @@ function newItemSheet(){
       <label>${t('field_notiz')}</label>
       <textarea data-action="draft-item" data-field="notiz">${esc(d.notiz)}</textarea>
     </div>
+    <div class="field">
+      <label>${t('field_attachments')}</label>
+      ${d.files.length? `
+        <div class="file-list" style="margin-bottom:8px;">
+          ${d.files.map((f,idx)=>`
+            <div class="file-row">
+              <span class="file-name">${esc(f.name)}</span><span class="file-size">${fmtFileSize(f.size)}</span>
+              <button class="link-btn" data-action="remove-draft-file" data-idx="${idx}">${t('remove_file')}</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+      <label class="photo-upload-btn">
+        ${t('add_file')}
+        <input type="file" multiple data-action="upload-draft-file" style="display:none;" />
+      </label>
+    </div>
     <div class="btn-row">
       <button class="btn btn-primary" data-action="save-new-item">${t('btn_create_item')}</button>
     </div>
@@ -1448,24 +1499,26 @@ function newItemSheet(){
 }
 
 function pickFlightcaseSheet(s){
-  const currentInv = s.inv;
+  const isDraft = s.for==='draft';
+  const currentInv = isDraft ? null : s.inv;
   // Guard against trivial cycles: can't pack an item into itself or into
-  // something it already directly contains.
-  const excluded = new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
+  // something it already directly contains. A draft item has no inv yet,
+  // so it can't already contain anything -- nothing to exclude.
+  const excluded = isDraft ? new Set() : new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
   // Flightcases can only be items filed under category 006 (Cases & Transport).
   const casesRoot = catRoots().find(r=>r.code==='006');
   const rootChildren = casesRoot ? catChildren(casesRoot.id) : [];
   return `
-    <button class="item-card" data-action="assign-flightcase" data-inv="${currentInv}" data-case="">
+    <button class="item-card" data-action="assign-flightcase" data-case="">
       <div class="ic-body"><span class="ic-title">${t('opt_no_flightcase')}</span></div>
     </button>
     <div class="cat-tree">
-      ${rootChildren.map(r=>renderFlightcasePickCatNode(r,0,currentInv,excluded)).join('')}
+      ${rootChildren.map(r=>renderFlightcasePickCatNode(r,0,excluded)).join('')}
     </div>
   `;
 }
 
-function renderFlightcasePickCatNode(node, depth, currentInv, excluded){
+function renderFlightcasePickCatNode(node, depth, excluded){
   const children = catChildren(node.id);
   const ids = descendantCatIds(node.id);
   const directItems = state.inventar.filter(i=>i.cat===node.id && !excluded.has(i.inv));
@@ -1483,14 +1536,14 @@ function renderFlightcasePickCatNode(node, depth, currentInv, excluded){
       ${expanded ? `
         <div class="cat-children">
           ${directItems.map(i=>`
-            <button class="item-card" data-action="assign-flightcase" data-inv="${currentInv}" data-case="${i.inv}">
+            <button class="item-card" data-action="assign-flightcase" data-case="${i.inv}">
               <div class="ic-body">
                 <span class="inv-num mono">${i.inv}</span>
                 <span class="ic-title">${esc(i.bez)}</span>
                 <span class="ic-meta">${esc(i.standort)}${childCountOf(i.inv)?' · '+esc(t('contains_short',{n:childCountOf(i.inv)})):''}</span>
               </div>
             </button>`).join('')}
-          ${children.map(c=>renderFlightcasePickCatNode(c,depth+1,currentInv,excluded)).join('')}
+          ${children.map(c=>renderFlightcasePickCatNode(c,depth+1,excluded)).join('')}
         </div>
       ` : ''}
     </div>`;
@@ -2239,16 +2292,26 @@ function onClick(e){
     case 'open-cat-picker-item':
       pushSheet({type:'pick-category', for:'item', inv:t2.dataset.inv}); break;
     case 'open-flightcase-picker':
-      pushSheet({type:'pick-flightcase', inv:t2.dataset.inv}); break;
+      pushSheet({type:'pick-flightcase', for:'item', inv:t2.dataset.inv}); break;
+    case 'open-flightcase-picker-draft':
+      pushSheet({type:'pick-flightcase', for:'draft'}); break;
     case 'open-flightcase-add-item':
       pushSheet({type:'flightcase-add-item', inv:t2.dataset.inv}); break;
     case 'assign-flightcase': {
-      const item = byInv(t2.dataset.inv);
+      const top = topSheet();
       const caseInv = t2.dataset.case || null;
-      item.parent = caseInv;
-      if(caseInv){ const box = byInv(caseInv); if(box) item.standort = box.standort; }
-      popSheet();
-      api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {parent: caseInv, standort: item.standort}).catch(()=>showToast(t('toast_sync_failed')));
+      const box = caseInv ? byInv(caseInv) : null;
+      if(top.for==='draft'){
+        ui.newItemDraft.flightcase = caseInv;
+        if(box) ui.newItemDraft.standort = box.standort;
+        popSheet();
+      } else {
+        const item = byInv(top.inv);
+        item.parent = caseInv;
+        if(box) item.standort = box.standort;
+        popSheet();
+        api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {parent: caseInv, standort: item.standort}).catch(()=>showToast(t('toast_sync_failed')));
+      }
       break;
     }
     case 'add-item-to-flightcase': {
@@ -2327,6 +2390,20 @@ function onClick(e){
     }
     case 'remove-draft-photo':
       ui.newItemDraft.fotoDataUrl = null; render(); break;
+    case 'remove-item-file': {
+      const item = byInv(t2.dataset.inv);
+      const id = t2.dataset.id;
+      if(item) item.files = item.files.filter(f=>f.id!==id);
+      render();
+      api('DELETE', `/api/inventar/${encodeURIComponent(t2.dataset.inv)}/files/${encodeURIComponent(id)}`).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'remove-draft-file': {
+      const idx = parseInt(t2.dataset.idx,10);
+      ui.newItemDraft.files.splice(idx,1);
+      render();
+      break;
+    }
     case 'toggle-checklist-item': {
       const item = byInv(t2.dataset.inv);
       const entry = item.checklist.find(c=>c.id===t2.dataset.id);
@@ -2547,6 +2624,22 @@ function onChange(e){
     }).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
+  if(action==='upload-item-file'){
+    const inv = t2.dataset.inv;
+    const files = t2.files ? Array.from(t2.files) : [];
+    t2.value = '';
+    files.reduce((chain,file)=>chain.then(()=>{
+      if(file.size > 8*1024*1024){ showToast(t('toast_file_too_large',{name:file.name})); return; }
+      return readFileAsDataUrl(file).then(dataUrl=>
+        api('POST', `/api/inventar/${encodeURIComponent(inv)}/files`, {dataUrl, name:file.name})
+      ).then(updated=>{
+        const item = byInv(inv);
+        if(item) item.files = updated.files;
+        render();
+      });
+    }), Promise.resolve()).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
   if(action==='draft-item'){
     const d = ui.newItemDraft;
     const field = t2.dataset.field;
@@ -2643,6 +2736,18 @@ function onChange(e){
     }).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
+  if(action==='upload-draft-file'){
+    const files = t2.files ? Array.from(t2.files) : [];
+    t2.value = '';
+    files.reduce((chain,file)=>chain.then(()=>{
+      if(file.size > 8*1024*1024){ showToast(t('toast_file_too_large',{name:file.name})); return; }
+      return readFileAsDataUrl(file).then(dataUrl=>{
+        ui.newItemDraft.files.push({name:file.name, size:file.size, dataUrl});
+        render();
+      });
+    }), Promise.resolve()).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
   if(action==='set-select-item-qty'){
     const inv = t2.dataset.inv;
     const item = byInv(inv);
@@ -2713,12 +2818,13 @@ async function doSaveNewItem(){
   const checklistTexts = d.pruef ? resolvedDraftChecklist(d) : [];
   const item = {
     inv:d.inv, cat:d.cat, tag:d.tag||null, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
-    standort:d.standort, parent:null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
+    standort:d.standort, parent:d.flightcase||null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
     pruef:!!d.pruef, letzte:d.letzte||null, naechste, notiz:d.notiz||'',
-    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'',
+    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'', files:[],
     checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };
   const fotoDataUrl = d.fotoDataUrl;
+  const draftFiles = d.files;
   state.inventar.push(item);
   closeSheets();
   showToast(t('toast_item_created',{inv:item.inv}));
@@ -2730,6 +2836,12 @@ async function doSaveNewItem(){
       if(stateItem) stateItem.foto = updated.foto;
       render();
     }
+    for(const f of draftFiles){
+      const updated = await api('POST', `/api/inventar/${encodeURIComponent(item.inv)}/files`, {dataUrl:f.dataUrl, name:f.name});
+      const stateItem = byInv(item.inv);
+      if(stateItem) stateItem.files = updated.files;
+      render();
+    }
   } catch(e){
     state.inventar = state.inventar.filter(i=>i.inv!==item.inv);
     showToast(e.message==='duplicate inventory number' ? t('toast_dup_inv',{inv:item.inv}) : t('toast_sync_failed'));
@@ -2739,6 +2851,18 @@ async function doSaveNewItem(){
 function addMonths(iso,months){
   const d = new Date(iso+'T00:00:00'); d.setMonth(d.getMonth()+months);
   return d.toISOString().slice(0,10);
+}
+
+// General file attachments (invoices, manuals, extra photos, ...) are kept
+// as-is -- unlike the item photo, there's no downscaling since these aren't
+// necessarily images.
+function readFileAsDataUrl(file){
+  return new Promise((resolve,reject)=>{
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
 }
 
 // Item photos are meant to stay tiny (a quick visual reminder, not a

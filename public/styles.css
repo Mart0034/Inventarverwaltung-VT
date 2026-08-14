@@ -253,6 +253,17 @@ button{cursor:pointer;}
 }
 .photo-upload-btn:hover{color:var(--text);border-color:var(--accent);}
 
+.file-list{display:flex;flex-direction:column;gap:6px;}
+.file-row{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--border);
+}
+.file-link{display:flex;align-items:baseline;gap:8px;flex:1;min-width:0;color:var(--text);}
+.file-link .file-name{font-weight:600;font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.file-row .file-name{font-weight:600;font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;}
+.file-row .file-size{font-size:.72rem;color:var(--text-faint);flex:none;}
+.file-row .link-btn{flex:none;}
+
 .tool-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
 .tool-btn{
   display:inline-flex;align-items:center;gap:6px;

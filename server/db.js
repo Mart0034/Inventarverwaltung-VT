@@ -120,6 +120,19 @@ db.exec(`
     checked INTEGER NOT NULL DEFAULT 0,
     sort_order INTEGER NOT NULL DEFAULT 0
   );
+
+  -- Arbitrary file attachments (invoices, extra photos, manuals, etc.) tied
+  -- to an item. The actual bytes live on disk under DATA_DIR/files/<filename>;
+  -- this table just tracks the mapping and the original filename for display.
+  CREATE TABLE IF NOT EXISTS inventar_files (
+    id TEXT PRIMARY KEY,
+    inv TEXT NOT NULL REFERENCES inventar(inv) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // --- lightweight migrations for columns added after initial release ---

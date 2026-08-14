@@ -10,6 +10,9 @@ const app = express();
 const PHOTOS_DIR = path.join(db.DATA_DIR, 'photos');
 if (!fs.existsSync(PHOTOS_DIR)) fs.mkdirSync(PHOTOS_DIR, { recursive: true });
 
+const FILES_DIR = path.join(db.DATA_DIR, 'files');
+if (!fs.existsSync(FILES_DIR)) fs.mkdirSync(FILES_DIR, { recursive: true });
+
 // Requests through the Flamegrid reverse proxy arrive over plain HTTP with
 // X-Forwarded-Proto: https set; the underlying port is also reachable
 // directly over plain HTTP, bypassing HTTPS entirely. Redirect any request
@@ -26,7 +29,10 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '2mb' }));
+// 2mb comfortably covers everything except file attachments (invoices,
+// scans, etc, capped at 8mb decoded -- see /files routes below), which is
+// why this is higher than a typical JSON API would need.
+app.use(express.json({ limit: '15mb' }));
 
 const BACKUP_TOKEN_FILE = path.join(db.DATA_DIR, 'backup-token.txt');
 function getOrCreateBackupToken() {
@@ -208,8 +214,12 @@ function checklistForInv(inv) {
   return db.prepare('SELECT id, text, checked FROM inventar_checklist WHERE inv = ? ORDER BY sort_order').all(inv)
     .map(c => ({ id: c.id, text: c.text, checked: !!c.checked }));
 }
+function filesForInv(inv) {
+  return db.prepare('SELECT id, filename, original_name, mime, size, uploaded_at FROM inventar_files WHERE inv = ? ORDER BY uploaded_at').all(inv)
+    .map(f => ({ id: f.id, name: f.original_name, mime: f.mime, size: f.size, uploadedAt: f.uploaded_at, url: `/files/${encodeURIComponent(f.filename)}` }));
+}
 function itemRow(row) {
-  return { ...row, pruef: !!row.pruef, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv) };
+  return { ...row, pruef: !!row.pruef, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv), files: filesForInv(row.inv) };
 }
 function rentalRow(row) {
   return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack), archiviert: !!row.archiviert };
@@ -415,6 +425,36 @@ app.delete('/api/inventar/:inv/photo', (req, res) => {
   if (!row) return res.status(404).json({ error: 'not found' });
   if (row.foto) { try { fs.unlinkSync(path.join(PHOTOS_DIR, row.foto)); } catch (e) { /* already gone */ } }
   db.prepare("UPDATE inventar SET foto = '' WHERE inv = ?").run(req.params.inv);
+  res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
+});
+
+/* ---- item file attachments (invoices, extra photos, manuals, ...) ---- */
+
+app.post('/api/inventar/:inv/files', (req, res) => {
+  const row = db.prepare('SELECT 1 FROM inventar WHERE inv = ?').get(req.params.inv);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const { dataUrl, name } = req.body;
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl || '');
+  if (!match) return res.status(400).json({ error: 'expected a base64 data URL' });
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 8 * 1024 * 1024) return res.status(413).json({ error: 'file too large (max 8mb)' });
+  const originalName = (name && String(name).trim()) || 'Datei';
+  const ext = path.extname(originalName).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 10);
+  const id = crypto.randomUUID();
+  const filename = `${req.params.inv.replace(/[^a-zA-Z0-9.-]/g, '_')}-${Date.now()}-${id.slice(0, 8)}${ext}`;
+  fs.writeFileSync(path.join(FILES_DIR, filename), buffer);
+  db.prepare(`
+    INSERT INTO inventar_files (id, inv, filename, original_name, mime, size)
+    VALUES (@id, @inv, @filename, @original_name, @mime, @size)
+  `).run({ id, inv: req.params.inv, filename, original_name: originalName, mime: match[1] || 'application/octet-stream', size: buffer.length });
+  res.status(201).json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
+});
+
+app.delete('/api/inventar/:inv/files/:id', (req, res) => {
+  const fileRow = db.prepare('SELECT * FROM inventar_files WHERE id = ? AND inv = ?').get(req.params.id, req.params.inv);
+  if (!fileRow) return res.status(404).json({ error: 'not found' });
+  try { fs.unlinkSync(path.join(FILES_DIR, fileRow.filename)); } catch (e) { /* already gone */ }
+  db.prepare('DELETE FROM inventar_files WHERE id = ?').run(req.params.id);
   res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
 });
 
@@ -800,6 +840,7 @@ app.get('/api/export/vermietung/:id/csv', (req, res) => {
 /* ---- static frontend ---- */
 
 app.use('/photos', express.static(PHOTOS_DIR));
+app.use('/files', express.static(FILES_DIR));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get(/^(?!\/api\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
