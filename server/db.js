@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -55,7 +56,8 @@ db.exec(`
     foto TEXT DEFAULT '',
     intervall INTEGER,
     nickname TEXT DEFAULT '',
-    gewicht INTEGER NOT NULL DEFAULT 0
+    gewicht INTEGER NOT NULL DEFAULT 0,
+    einkaufspreis REAL
   );
 
   CREATE TABLE IF NOT EXISTS customers (
@@ -146,6 +148,29 @@ db.exec(`
     uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
+  -- A device that has proven the long master password once. Its id is
+  -- also the value of the fundus_device cookie -- once a browser holds a
+  -- cookie matching a row here, it's allowed to unlock with the short PIN
+  -- (and, if it has enrolled one below, a fingerprint/biometric) instead
+  -- of the master password. Deleting a row here revokes that device.
+  CREATE TABLE IF NOT EXISTS trusted_devices (
+    id TEXT PRIMARY KEY,
+    label TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  -- WebAuthn (platform authenticator / fingerprint) credentials, one row
+  -- per enrolled device. public_key is the raw COSE public key, base64-encoded.
+  CREATE TABLE IF NOT EXISTS webauthn_credentials (
+    id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL REFERENCES trusted_devices(id) ON DELETE CASCADE,
+    public_key TEXT NOT NULL,
+    counter INTEGER NOT NULL DEFAULT 0,
+    transports TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   -- Track-keeping of who dialed in what: one row per changed field, so an
   -- item's whole history can be reconstructed later. actor is just whatever
   -- the secret-settings username was set to at the time (this app has no
@@ -174,6 +199,7 @@ ensureColumn('inventar', 'tag', 'tag TEXT REFERENCES tags(id)');
 ensureColumn('inventar', 'intervall', 'intervall INTEGER');
 ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
+ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
 
@@ -198,6 +224,13 @@ if (ensureColumn('categories', 'sort_order', 'sort_order INTEGER NOT NULL DEFAUL
 // Same idea as ensureColumn, but for a settings row -- installs that
 // existed before the PIN gate was added won't have one yet.
 db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES ('pin', '1234')").run();
+
+// Default master password for brand-new devices (see the auth gate in
+// server/index.js) -- meant to be changed immediately from Settings once
+// deployed, same as the PIN default above.
+if (!db.prepare("SELECT 1 FROM settings WHERE key = 'masterPasswordHash'").get()) {
+  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('masterPasswordHash', bcrypt.hashSync('fundus-setup', 10));
+}
 
 // Older rows store vermietungen.items as a plain JSON array of inv strings
 // (["004.02.001", ...]); newer code needs [{inv, menge}, ...] to support

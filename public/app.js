@@ -17,6 +17,8 @@ const ICONS = {
   chevRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,5 16,12 9,19"/></svg>',
   chevDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,9 12,16 19,9"/></svg>',
   chevUp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,15 12,8 19,15"/></svg>',
+  reload:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 21v-5h5"/></svg>',
+  logout:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
 };
 
 /* ---------- i18n ---------- */
@@ -204,6 +206,21 @@ const STRINGS = {
     hersteller_p:'Vorschlagsliste für das Hersteller-Feld beim Anlegen eines Artikels. Freitext bleibt weiterhin möglich.',
     cases_root_title:'Ort / Flightcase-Kategorie',
     cases_root_p:'Welche Hauptgruppe als „Ort" (Flightcase-Zuordnung) verwendet wird — nur Artikel in dieser Gruppe (und ihren Unterkategorien) lassen sich als Flightcase auswählen.',
+    field_einkaufspreis:'Einkaufspreis',
+    einkaufspreis_hint:'Was der Artikel gekostet hat — für Kostenübersicht und Wertermittlung bei Verlust/Schaden.',
+    btn_reload:'Seite neu laden',
+    master_pw_title:'Master-Passwort', master_pw_field:'Neues Master-Passwort',
+    master_pw_placeholder:'mindestens 8 Zeichen',
+    master_pw_p:'Damit loggen sich komplett neue Geräte das erste Mal ein — am besten lang und ungewöhnlich (z. B. eine E-Mail-Adresse als Passwort). Danach dürfen diese Geräte die 4-stellige PIN und Fingerabdruck nutzen.',
+    master_pw_save:'Master-Passwort speichern',
+    toast_master_pw_saved:'Master-Passwort geändert', toast_master_pw_invalid:'Mindestens 8 Zeichen nötig',
+    biometric_title:'Fingerabdruck', biometric_p:'Dieses Gerät per Fingerabdruck/Face ID statt PIN entsperren.',
+    biometric_enabled:'Auf diesem Gerät eingerichtet.', biometric_remove:'Entfernen', biometric_enroll:'Fingerabdruck aktivieren',
+    toast_biometric_enrolled:'Fingerabdruck eingerichtet', toast_biometric_failed:'Fingerabdruck-Einrichtung fehlgeschlagen',
+    devices_title:'Vertraute Geräte', devices_p:'Geräte, die sich einmal mit dem Master-Passwort angemeldet haben und seitdem PIN/Fingerabdruck nutzen dürfen.',
+    devices_this_device:'dieses Gerät', devices_last_seen:'zuletzt aktiv {date}', devices_has_biometric:'Fingerabdruck aktiv',
+    devices_revoke:'Entfernen', devices_empty:'Noch keine vertrauten Geräte.',
+    toast_device_revoked:'Gerät entfernt',
   },
   en: {
     tab_start:'Home', tab_inventar:'Inventory', tab_pruefungen:'Checks', tab_vermietungen:'Rentals', tab_mehr:'More',
@@ -387,6 +404,21 @@ const STRINGS = {
     hersteller_p:'Suggestion list for the Manufacturer field when creating an item. Free text is still possible.',
     cases_root_title:'Flightcase category',
     cases_root_p:'Which top-level category is used for "Flightcase" assignment — only items in this group (and its subcategories) can be picked as a flightcase.',
+    field_einkaufspreis:'Purchase price',
+    einkaufspreis_hint:'What the item cost — for cost tracking and valuation if lost or damaged.',
+    btn_reload:'Reload page',
+    master_pw_title:'Master password', master_pw_field:'New master password',
+    master_pw_placeholder:'at least 8 characters',
+    master_pw_p:'Brand-new devices log in with this the first time — best kept long and unusual (e.g. an email address as a password). After that, those devices may use the 4-digit PIN and fingerprint.',
+    master_pw_save:'Save master password',
+    toast_master_pw_saved:'Master password changed', toast_master_pw_invalid:'At least 8 characters required',
+    biometric_title:'Fingerprint', biometric_p:'Unlock this device with fingerprint/Face ID instead of the PIN.',
+    biometric_enabled:'Set up on this device.', biometric_remove:'Remove', biometric_enroll:'Enable fingerprint',
+    toast_biometric_enrolled:'Fingerprint set up', toast_biometric_failed:'Fingerprint setup failed',
+    devices_title:'Trusted devices', devices_p:'Devices that logged in once with the master password and may use PIN/fingerprint since.',
+    devices_this_device:'this device', devices_last_seen:'last active {date}', devices_has_biometric:'fingerprint active',
+    devices_revoke:'Remove', devices_empty:'No trusted devices yet.',
+    toast_device_revoked:'Device removed',
   }
 };
 
@@ -571,6 +603,56 @@ function countItemsUnder(id){
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
+/* ---------- WebAuthn helpers (biometric enrollment) ---------- */
+
+function b64urlToBytes(s){
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while(s.length%4) s += '=';
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function bytesToB64url(buf){
+  let bin = '';
+  const bytes = new Uint8Array(buf);
+  for(let i=0;i<bytes.length;i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+async function doEnrollBiometric(){
+  try {
+    const optionsRes = await fetch('/api/webauthn/register/options', {method:'POST'});
+    if(!optionsRes.ok) throw new Error('options failed');
+    const options = await optionsRes.json();
+    const publicKey = {
+      ...options,
+      challenge: b64urlToBytes(options.challenge),
+      user: { ...options.user, id: b64urlToBytes(options.user.id) },
+      excludeCredentials: (options.excludeCredentials||[]).map(c=>({...c, id:b64urlToBytes(c.id)})),
+    };
+    const cred = await navigator.credentials.create({ publicKey });
+    const payload = {
+      id: cred.id,
+      rawId: bytesToB64url(cred.rawId),
+      type: cred.type,
+      response: {
+        clientDataJSON: bytesToB64url(cred.response.clientDataJSON),
+        attestationObject: bytesToB64url(cred.response.attestationObject),
+        transports: cred.response.getTransports ? cred.response.getTransports() : [],
+      },
+      clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+    };
+    const verifyRes = await fetch('/api/webauthn/register/verify', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload),
+    });
+    if(!verifyRes.ok) throw new Error('verify failed');
+    showToast(t('toast_biometric_enrolled'));
+    await loadState();
+  } catch(e){
+    showToast(t('toast_biometric_failed'));
+  }
+}
+
 /* ---------- sheet stack ---------- */
 
 function openSheet(s){ ui.sheetStack = [s]; render(); }
@@ -665,6 +747,10 @@ function topbar(){
       <img class="brand-mark" src="/icons/brand-mark.png" alt="">
     </button>
     <div class="topbar-title">${screenTitle()}</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" data-action="reload-app" aria-label="${t('btn_reload')}">${ICONS.reload}</button>
+      <button class="icon-btn" data-action="lock-now" aria-label="${t('pin_lock_now')}">${ICONS.logout}</button>
+    </div>
   </header>`;
 }
 
@@ -678,9 +764,15 @@ function tabbar(){
 function sidebar(){
   return `
   <nav class="sidebar">
-    <button class="sidebar-brand" data-action="tab" data-tab="start" aria-label="Start">
-      <img class="brand-mark" src="/icons/brand-mark.png" alt=""><span class="sidebar-brand-name">Fundus</span>
-    </button>
+    <div class="sidebar-brand-row">
+      <button class="sidebar-brand" data-action="tab" data-tab="start" aria-label="Start">
+        <img class="brand-mark" src="/icons/brand-mark.png" alt=""><span class="sidebar-brand-name">Fundus</span>
+      </button>
+      <div class="topbar-actions">
+        <button class="icon-btn" data-action="reload-app" aria-label="${t('btn_reload')}">${ICONS.reload}</button>
+        <button class="icon-btn" data-action="lock-now" aria-label="${t('pin_lock_now')}">${ICONS.logout}</button>
+      </div>
+    </div>
     <div class="sidebar-nav">
       ${NAV_TABS.map(([id,icon,key])=>`
         <button class="sidebar-nav-btn ${ui.tab===id?'active':''}" data-action="tab" data-tab="${id}">
@@ -1212,6 +1304,44 @@ function screenEinstellungen(){
     </div>
 
     <div class="settings-card">
+      <h3>${t('master_pw_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('master_pw_p')}</p>
+      <div class="field">
+        <label>${t('master_pw_field')}</label>
+        <input type="password" id="new-master-password" placeholder="${t('master_pw_placeholder')}" minlength="8" autocomplete="off" />
+      </div>
+      <button class="btn btn-secondary" data-action="set-master-password">${t('master_pw_save')}</button>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('biometric_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('biometric_p')}</p>
+      ${currentDeviceHasBiometric() ? `
+        <p class="field-hint" style="margin-bottom:10px;">${t('biometric_enabled')}</p>
+        <button class="btn btn-secondary" data-action="remove-biometric" style="color:var(--status-crit);">${t('biometric_remove')}</button>
+      ` : `
+        <button class="btn btn-secondary" data-action="enroll-biometric">${t('biometric_enroll')}</button>
+      `}
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('devices_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('devices_p')}</p>
+      <div class="card-list">
+        ${(state.trustedDevices||[]).map(d=>`
+          <div class="item-card" style="cursor:default;">
+            <div class="ic-body">
+              <span class="ic-title">${esc(d.label)}${d.isThisDevice? ' · '+t('devices_this_device') : ''}</span>
+              <span class="ic-meta">${t('devices_last_seen',{date:fmtDateTime(d.lastSeenAt)})}${d.hasBiometric? ' · '+t('devices_has_biometric') : ''}</span>
+            </div>
+            <button class="link-btn" data-action="revoke-device" data-id="${d.id}" style="color:var(--status-crit);">${t('devices_revoke')}</button>
+          </div>
+        `).join('')}
+        ${!(state.trustedDevices||[]).length? `<p class="field-hint">${t('devices_empty')}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="settings-card">
       <h3>${t('lang_title')}</h3>
       <div class="lang-toggle">
         <button class="lang-btn ${ui.lang==='de'?'active':''}" data-action="set-lang" data-val="de">Deutsch</button>
@@ -1276,6 +1406,10 @@ function screenEinstellungen(){
   `;
 }
 function backupUrl(){ return window.location.origin + '/api/backup'; }
+function currentDeviceHasBiometric(){
+  const d = (state.trustedDevices||[]).find(x=>x.isThisDevice);
+  return !!(d && d.hasBiometric);
+}
 
 /* ---------- sheets ---------- */
 
@@ -1373,10 +1507,26 @@ function itemDetailSheet(i){
           <button class="link-btn" data-action="open-cat-picker-item" data-inv="${i.inv}">${t('change')}</button>
         </span>
       </div>
-      <div class="detail-item"><span class="dl-label">${t('field_hersteller')}</span><span class="dl-value">${esc(i.hersteller)||'–'}</span></div>
-      <div class="detail-item"><span class="dl-label">${t('field_modell')}</span><span class="dl-value">${esc(i.modell)||'–'}</span></div>
-      <div class="detail-item"><span class="dl-label">${t('field_serien')}</span><span class="dl-value mono">${esc(i.serien)||'–'}</span></div>
-      <div class="detail-item"><span class="dl-label">${t('field_miete')}</span><span class="dl-value mono">${i.miete? fmtEuro(i.miete):'–'}</span></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>${t('field_hersteller')}</label>
+        <input type="text" list="hersteller-list" data-action="edit-item" data-field="hersteller" data-inv="${i.inv}" value="${esc(i.hersteller)}" />
+        <datalist id="hersteller-list">
+          ${distinctHersteller().map(h=>`<option value="${esc(h)}"></option>`).join('')}
+        </datalist>
+      </div>
+      <div class="field"><label>${t('field_modelltyp')}</label><input type="text" data-action="edit-item" data-field="modell" data-inv="${i.inv}" value="${esc(i.modell)}" /></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>${t('field_serien')}</label><input type="text" data-action="edit-item" data-field="serien" data-inv="${i.inv}" value="${esc(i.serien)}" /></div>
+      <div class="field"><label>${t('field_miete_eur')}</label><input type="number" min="0" step="0.01" data-action="edit-item" data-field="miete" data-inv="${i.inv}" value="${esc(i.miete)}" /></div>
+    </div>
+    <div class="field">
+      <label>${t('field_einkaufspreis')}</label>
+      <input type="number" min="0" step="0.01" data-action="edit-item" data-field="einkaufspreis" data-inv="${i.inv}" value="${i.einkaufspreis!=null?i.einkaufspreis:''}" placeholder="0,00" />
+      <span class="field-hint">${t('einkaufspreis_hint')}</span>
     </div>
 
     ${state.tags.filter(tg=>tg.cat===i.cat).length? `
@@ -1526,7 +1676,7 @@ function newItemSheet(){
   const d = ui.newItemDraft || (ui.newItemDraft = {
     inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
-    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', gewicht:'',
+    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', gewicht:'', einkaufspreis:'',
     testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[], nickname:''
   });
   const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
@@ -1597,6 +1747,11 @@ function newItemSheet(){
     <div class="field-row">
       <div class="field"><label>${t('field_serien')}</label><input type="text" data-action="draft-item" data-field="serien" value="${esc(d.serien)}" /></div>
       <div class="field"><label>${t('field_miete_eur')}</label><input type="number" min="0" data-action="draft-item" data-field="miete" value="${esc(d.miete)}" /></div>
+    </div>
+    <div class="field">
+      <label>${t('field_einkaufspreis')}</label>
+      <input type="number" min="0" step="0.01" data-action="draft-item" data-field="einkaufspreis" value="${esc(d.einkaufspreis)}" placeholder="0,00" />
+      <span class="field-hint">${t('einkaufspreis_hint')}</span>
     </div>
     <div class="field-row">
       <div class="field">
@@ -2205,7 +2360,7 @@ function auditFieldLabel(field){
     standort:'field_standort', parent:'field_flightcase', status:'field_status', miete:'field_miete',
     pruef:'check_pruefpflicht', letzte:'field_letzte', naechste:'field_naechste', notiz:'field_notiz',
     cat:'field_category', menge:'field_menge', tag:'field_tag', intervall:'field_intervall',
-    nickname:'field_nickname', gewicht:'field_gewicht',
+    nickname:'field_nickname', gewicht:'field_gewicht', einkaufspreis:'field_einkaufspreis',
   };
   return map[field] ? t(map[field]) : field;
 }
@@ -2593,7 +2748,7 @@ function dataExplorerSheet(){
 
   return `
     <p class="field-hint" style="margin-bottom:16px;">${t('explorer_intro')}</p>
-    ${rawTable('inventar', t('tab_inventar'), state.inventar, ['inv','cat','tag','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','gewicht','foto'])}
+    ${rawTable('inventar', t('tab_inventar'), state.inventar, ['inv','cat','tag','bez','hersteller','modell','serien','standort','parent','status','miete','einkaufspreis','pruef','letzte','naechste','notiz','menge','gewicht','foto'])}
     ${rawTable('vermietungen', t('tab_vermietungen'), state.vermietungen.map(v=>({...v, items:itemsAsTextClient(v.items), pack:JSON.stringify(v.pack)})), ['id','kunde','customer_id','von','bis','status','archiviert','items','pack'])}
     ${rawTable('customers', t('nav_customers'), state.customers, ['id','name','firma','email','telefon','adresse','notiz','created_at'])}
     ${rawTable('bundles', t('nav_bundles'), state.bundles.map(b=>({...b, items:itemsAsTextClient(b.items)})), ['id','name','notiz','suggestedPrice','items'])}
@@ -3048,6 +3203,30 @@ function onClick(e){
     case 'lock-now':
       api('POST', '/api/logout').finally(()=>location.reload());
       break;
+    case 'reload-app':
+      location.reload();
+      break;
+    case 'set-master-password': {
+      const inp = document.getElementById('new-master-password');
+      const value = inp ? inp.value : '';
+      if(value.length < 8){ showToast(t('toast_master_pw_invalid')); break; }
+      api('PATCH', '/api/settings', {masterPassword: value})
+        .then(()=>{ if(inp) inp.value=''; showToast(t('toast_master_pw_saved')); })
+        .catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'enroll-biometric':
+      doEnrollBiometric();
+      break;
+    case 'remove-biometric':
+      api('DELETE', '/api/webauthn/credentials').then(()=>loadState()).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    case 'revoke-device':
+      api('DELETE', `/api/trusted-devices/${encodeURIComponent(t2.dataset.id)}`).then(()=>{
+        showToast(t('toast_device_revoked'));
+        loadState();
+      }).catch(()=>showToast(t('toast_sync_failed')));
+      break;
   }
 }
 
@@ -3058,7 +3237,14 @@ function onChange(e){
   if(action==='edit-item'){
     const item = byInv(t2.dataset.inv);
     const field = t2.dataset.field;
-    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : field==='intervall' ? (parseInt(t2.value,10)||12) : field==='gewicht' ? Math.max(0, parseInt(t2.value,10)||0) : t2.value);
+    const value = t2.type==='checkbox' ? t2.checked
+      : field==='menge' ? Math.max(1, parseInt(t2.value,10)||1)
+      : field==='tag' ? (t2.value||null)
+      : field==='intervall' ? (parseInt(t2.value,10)||12)
+      : field==='gewicht' ? Math.max(0, parseInt(t2.value,10)||0)
+      : field==='miete' ? (parseFloat(t2.value)||0)
+      : field==='einkaufspreis' ? (t2.value===''?null:parseFloat(t2.value)||0)
+      : t2.value;
     item[field] = value;
     const patch = {[field]: value, actor: auditActor()};
     // Mirrors the naechste = letzte + intervall computation used at item
@@ -3269,6 +3455,7 @@ async function doSaveNewItem(){
     pruef:!!d.pruef, letzte:d.letzte||null, naechste, intervall:d.pruef?(parseInt(d.intervall,10)||12):null, notiz:d.notiz||'',
     menge:1, foto:'', files:[], nickname:isCaseCat(d.cat)?(d.nickname||''):'',
     gewicht:Math.max(0, parseInt(d.gewicht,10)||0),
+    einkaufspreis: d.einkaufspreis!=='' && d.einkaufspreis!=null ? parseFloat(d.einkaufspreis)||0 : null,
     checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };
   const fotoDataUrl = d.fotoDataUrl;

@@ -3,6 +3,11 @@ const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
 const JSZip = require('jszip');
+const bcrypt = require('bcryptjs');
+const {
+  generateRegistrationOptions, verifyRegistrationResponse,
+  generateAuthenticationOptions, verifyAuthenticationResponse,
+} = require('@simplewebauthn/server');
 const db = require('./db');
 
 const app = express();
@@ -45,17 +50,28 @@ function getOrCreateBackupToken() {
 }
 const BACKUP_TOKEN = getOrCreateBackupToken();
 
-/* ---- PIN gate ----
- * Single shared 4-digit PIN, no user accounts. A correct PIN sets a
- * long-lived cookie holding a random per-install access token (kept
- * separate from the PIN itself, so changing the PIN later doesn't need to
- * invalidate already-unlocked browsers). Everything except the login
- * endpoint, the backup endpoint (already gated by its own bearer token,
- * used by an unattended GitHub Action with no browser/cookie), and the
- * small set of branding icons used on the login page itself requires this
- * cookie to match.
+/* ---- auth gate ----
+ * Two tiers, no user accounts:
+ *  - A brand-new browser/device (no fundus_device cookie yet) can only log
+ *    in with the long master password. On success it's minted a random
+ *    per-device id, stored in `trusted_devices` and set as the
+ *    fundus_device cookie -- separate from fundus_access, and never
+ *    cleared by logout, so it survives across sessions.
+ *  - Once a device holds a valid fundus_device cookie, it's "trusted" and
+ *    may instead log in with the short 4-digit PIN, or with a fingerprint/
+ *    biometric it has enrolled (WebAuthn platform authenticator, tied to
+ *    that device row). Revoking a device (Settings) deletes its row and
+ *    its credentials, forcing it back to master-password-only.
+ * fundus_access itself works exactly as before: a single shared token,
+ * the same for every device, that just means "this browser unlocked the
+ * app." All of this is deliberately lightweight -- there are no real user
+ * accounts, just a small business's shared install.
  */
 const ACCESS_COOKIE = 'fundus_access';
+const DEVICE_COOKIE = 'fundus_device';
+const ONE_YEAR_MS = 1000 * 60 * 60 * 24 * 365;
+const FIVE_YEARS_MS = ONE_YEAR_MS * 5;
+
 const ACCESS_TOKEN_FILE = path.join(db.DATA_DIR, 'access-token.txt');
 function getOrCreateAccessToken() {
   if (fs.existsSync(ACCESS_TOKEN_FILE)) {
@@ -71,6 +87,10 @@ function getPin() {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('pin');
   return row ? row.value : '1234';
 }
+function getMasterPasswordHash() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('masterPasswordHash');
+  return row ? row.value : null;
+}
 
 function parseCookies(req) {
   const header = req.headers.cookie;
@@ -83,16 +103,68 @@ function parseCookies(req) {
   });
   return out;
 }
-
-// Slows down PIN guessing (10,000 combinations is trivial to script through
-// with no throttling at all) without needing per-IP infrastructure -- a
-// global failure counter that makes each wrong guess progressively slower.
-let failedPinAttempts = 0;
-let lastFailedPinAt = 0;
-function pinBackoffMs() {
-  if (Date.now() - lastFailedPinAt > 5 * 60 * 1000) failedPinAttempts = 0;
-  return Math.min(8000, failedPinAttempts * 400);
+function isRequestHttps(req) {
+  return req.secure || req.headers['x-forwarded-proto'] === 'https';
 }
+function requestOrigin(req) {
+  return (isRequestHttps(req) ? 'https' : 'http') + '://' + req.get('host');
+}
+function trustedDeviceFor(req) {
+  const id = parseCookies(req)[DEVICE_COOKIE];
+  return id ? db.prepare('SELECT * FROM trusted_devices WHERE id = ?').get(id) : null;
+}
+function setAccessCookie(req, res) {
+  res.cookie(ACCESS_COOKIE, ACCESS_TOKEN, {
+    httpOnly: true, sameSite: 'lax', secure: isRequestHttps(req), maxAge: ONE_YEAR_MS,
+  });
+}
+function touchDevice(id) {
+  db.prepare("UPDATE trusted_devices SET last_seen_at = datetime('now') WHERE id = ?").run(id);
+}
+// A short, best-effort label so a "trusted devices" list in Settings isn't
+// just a wall of random IDs. Not meant to be precise -- just recognizable.
+function labelFromUserAgent(ua) {
+  ua = ua || '';
+  const os = /iphone/i.test(ua) ? 'iPhone' : /ipad/i.test(ua) ? 'iPad' : /android/i.test(ua) ? 'Android'
+    : /mac os/i.test(ua) ? 'Mac' : /windows/i.test(ua) ? 'Windows' : /linux/i.test(ua) ? 'Linux' : '';
+  const browser = /edg\//i.test(ua) ? 'Edge' : /chrome\//i.test(ua) ? 'Chrome' : /firefox\//i.test(ua) ? 'Firefox'
+    : /safari\//i.test(ua) ? 'Safari' : '';
+  return [browser, os].filter(Boolean).join(' · ') || 'Gerät';
+}
+function mintTrustedDevice(req, res) {
+  const id = crypto.randomUUID();
+  db.prepare('INSERT INTO trusted_devices (id, label) VALUES (?, ?)').run(id, labelFromUserAgent(req.headers['user-agent']));
+  res.cookie(DEVICE_COOKIE, id, {
+    httpOnly: true, sameSite: 'lax', secure: isRequestHttps(req), maxAge: FIVE_YEARS_MS,
+  });
+  return id;
+}
+
+// Pending WebAuthn ceremonies, keyed by device id -- a device only ever has
+// one registration or one login attempt in flight at a time, so this is
+// simpler than a DB table. Swept for anything older than 5 minutes so an
+// abandoned ceremony doesn't linger forever.
+const webauthnChallenges = new Map();
+function setChallenge(deviceId, challenge) { webauthnChallenges.set(deviceId, { challenge, at: Date.now() }); }
+function takeChallenge(deviceId) {
+  const entry = webauthnChallenges.get(deviceId);
+  webauthnChallenges.delete(deviceId);
+  if (!entry || Date.now() - entry.at > 5 * 60 * 1000) return null;
+  return entry.challenge;
+}
+
+// Slows down PIN/password guessing (10,000 PIN combinations is trivial to
+// script through with no throttling at all) without needing per-IP
+// infrastructure -- a global failure counter that makes each wrong guess
+// progressively slower. WebAuthn ceremonies are cryptographically verified,
+// not guessable, so they don't go through this.
+let failedAuthAttempts = 0;
+let lastFailedAuthAt = 0;
+function authBackoffMs() {
+  if (Date.now() - lastFailedAuthAt > 5 * 60 * 1000) failedAuthAttempts = 0;
+  return Math.min(8000, failedAuthAttempts * 400);
+}
+function recordAuthFailure() { failedAuthAttempts += 1; lastFailedAuthAt = Date.now(); }
 
 const LOGIN_PAGE_HTML = `<!doctype html>
 <html lang="de">
@@ -112,66 +184,178 @@ const LOGIN_PAGE_HTML = `<!doctype html>
   .mark{width:52px;height:52px;border-radius:50%;object-fit:cover;margin-bottom:14px;}
   h1{font-size:1.05rem;margin:0 0 4px;}
   p{color:#9aa1b5;font-size:.84rem;margin:0 0 22px;}
+  .field-wrap{position:relative;margin-bottom:14px;}
   input{
-    width:100%;font-size:1.6rem;letter-spacing:.5rem;text-align:center;
-    padding:12px 10px;border-radius:10px;border:1px solid #2a3040;background:#10131C;color:#fff;
-    font-family:'SFMono-Regular',Consolas,monospace;margin-bottom:14px;
+    width:100%;font-size:1.05rem;text-align:center;
+    padding:12px 40px;border-radius:10px;border:1px solid #2a3040;background:#10131C;color:#fff;
+    font-family:'SFMono-Regular',Consolas,monospace;
   }
+  input#pin{font-size:1.6rem;letter-spacing:.5rem;padding:12px 10px;}
   input:focus{outline:2px solid #364786;}
-  button{
+  .toggle-vis{
+    position:absolute;right:6px;top:50%;transform:translateY(-50%);
+    background:none;border:none;color:#9aa1b5;font-size:.72rem;font-weight:600;
+    padding:6px 8px;cursor:pointer;width:auto;
+  }
+  button.primary{
     width:100%;padding:12px;border-radius:10px;border:none;background:#364786;color:#fff;
     font-size:.92rem;font-weight:600;cursor:pointer;
   }
+  button.secondary{
+    width:100%;padding:12px;border-radius:10px;border:1px solid #2a3040;background:none;color:#f2f4f9;
+    font-size:.88rem;font-weight:600;cursor:pointer;margin-top:10px;
+  }
   button:disabled{opacity:.5;cursor:default;}
   .error{color:#e8746a;font-size:.8rem;margin:10px 0 0;min-height:1em;}
+  .hidden{display:none;}
 </style>
 </head>
 <body>
-  <form class="card" id="f">
+  <form class="card hidden" id="f">
     <img class="mark" src="/icons/brand-mark.png" alt="">
     <h1>Fundus</h1>
-    <p>Bitte PIN eingeben</p>
-    <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autofocus />
-    <button type="submit">Entsperren</button>
+    <p id="prompt">Bitte PIN eingeben</p>
+
+    <div class="field-wrap hidden" id="pin-wrap">
+      <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" />
+    </div>
+    <div class="field-wrap hidden" id="password-wrap">
+      <input id="password" type="password" autocomplete="off" placeholder="Passwort" />
+      <button type="button" class="toggle-vis" id="toggle-vis">Anzeigen</button>
+    </div>
+
+    <button type="submit" class="primary">Entsperren</button>
+    <button type="button" class="secondary hidden" id="biometric-btn">Mit Fingerabdruck entsperren</button>
     <p class="error" id="err"></p>
   </form>
 <script>
+  function b64urlToBytes(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function bytesToB64url(buf) {
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+  }
+
   const f = document.getElementById('f');
+  const prompt = document.getElementById('prompt');
+  const pinWrap = document.getElementById('pin-wrap');
   const pinInput = document.getElementById('pin');
+  const passwordWrap = document.getElementById('password-wrap');
+  const passwordInput = document.getElementById('password');
+  const toggleVis = document.getElementById('toggle-vis');
+  const biometricBtn = document.getElementById('biometric-btn');
   const err = document.getElementById('err');
+  let mode = 'password';
+
+  toggleVis.addEventListener('click', () => {
+    const showing = passwordInput.type === 'text';
+    passwordInput.type = showing ? 'password' : 'text';
+    toggleVis.textContent = showing ? 'Anzeigen' : 'Verbergen';
+  });
+
+  async function submitLogin(body) {
+    const res = await fetch('/api/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    return res;
+  }
+
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
     err.textContent = '';
-    const pin = pinInput.value.trim();
-    if(!pin) return;
-    const btn = f.querySelector('button');
+    const body = mode === 'pin' ? { pin: pinInput.value.trim() } : { password: passwordInput.value };
+    if (mode === 'pin' && !body.pin) return;
+    if (mode === 'password' && !body.password) return;
+    const btn = f.querySelector('button.primary');
     btn.disabled = true;
     try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ pin }),
-      });
-      if(res.ok){ location.reload(); return; }
-      err.textContent = 'Falsche PIN.';
+      const res = await submitLogin(body);
+      if (res.ok) { location.reload(); return; }
+      err.textContent = mode === 'pin' ? 'Falsche PIN.' : 'Falsches Passwort.';
       pinInput.value = '';
-      pinInput.focus();
-    } catch(e2){
+      if (mode === 'pin') pinInput.focus(); else passwordInput.focus();
+    } catch (e2) {
       err.textContent = 'Verbindung fehlgeschlagen.';
     }
     btn.disabled = false;
   });
+
+  biometricBtn.addEventListener('click', async () => {
+    err.textContent = '';
+    biometricBtn.disabled = true;
+    try {
+      const optRes = await fetch('/api/webauthn/login/options', { method: 'POST' });
+      if (!optRes.ok) throw new Error('no options');
+      const options = await optRes.json();
+      options.challenge = b64urlToBytes(options.challenge);
+      (options.allowCredentials || []).forEach(c => { c.id = b64urlToBytes(c.id); });
+      const cred = await navigator.credentials.get({ publicKey: options });
+      const payload = {
+        id: cred.id,
+        rawId: bytesToB64url(cred.rawId),
+        type: cred.type,
+        response: {
+          clientDataJSON: bytesToB64url(cred.response.clientDataJSON),
+          authenticatorData: bytesToB64url(cred.response.authenticatorData),
+          signature: bytesToB64url(cred.response.signature),
+          userHandle: cred.response.userHandle ? bytesToB64url(cred.response.userHandle) : undefined,
+        },
+        clientExtensionResults: cred.getClientExtensionResults ? cred.getClientExtensionResults() : {},
+      };
+      const verifyRes = await fetch('/api/webauthn/login/verify', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
+      });
+      if (!verifyRes.ok) throw new Error('verify failed');
+      location.reload();
+      return;
+    } catch (e3) {
+      err.textContent = 'Fingerabdruck fehlgeschlagen.';
+    }
+    biometricBtn.disabled = false;
+  });
+
+  (async () => {
+    try {
+      const res = await fetch('/api/auth-status');
+      const status = await res.json();
+      if (status.deviceTrusted) {
+        mode = 'pin';
+        prompt.textContent = 'Bitte PIN eingeben';
+        pinWrap.classList.remove('hidden');
+        if (status.hasBiometric && window.PublicKeyCredential) biometricBtn.classList.remove('hidden');
+      } else {
+        mode = 'password';
+        prompt.textContent = 'Neues Gerät — bitte Passwort eingeben';
+        passwordWrap.classList.remove('hidden');
+      }
+    } catch (e4) {
+      mode = 'password';
+      prompt.textContent = 'Neues Gerät — bitte Passwort eingeben';
+      passwordWrap.classList.remove('hidden');
+    }
+    f.classList.remove('hidden');
+    (mode === 'pin' ? pinInput : passwordInput).focus();
+  })();
 </script>
 </body>
 </html>`;
 
 app.use((req, res, next) => {
-  // manifest.json, the service worker, and the icons they point to have to
-  // stay reachable without the access cookie -- the OS/browser fetches them
-  // independently of any logged-in tab (install-time, and again on periodic
-  // re-validation of an already-installed PWA / WebAPK icon refresh on
-  // Android), and none of them contain anything sensitive.
-  if (req.path === '/api/login' || req.path === '/api/backup' || req.path === '/manifest.json' || req.path === '/sw.js' || req.path.startsWith('/icons/')) {
+  // manifest.json, the service worker, the icons they point to, the backup
+  // endpoint (gated by its own bearer token), auth-status, and the login/
+  // WebAuthn-login endpoints all have to stay reachable without the access
+  // cookie -- they're either how a device gets that cookie in the first
+  // place, or fetched by the OS/browser independently of any logged-in tab.
+  const OPEN_PATHS = ['/api/login', '/api/backup', '/api/auth-status', '/api/webauthn/login/options', '/api/webauthn/login/verify', '/manifest.json', '/sw.js'];
+  if (OPEN_PATHS.includes(req.path) || req.path.startsWith('/icons/')) {
     return next();
   }
   const cookies = parseCookies(req);
@@ -182,34 +366,171 @@ app.use((req, res, next) => {
   res.status(401).type('html').send(LOGIN_PAGE_HTML);
 });
 
+app.get('/api/auth-status', (req, res) => {
+  const device = trustedDeviceFor(req);
+  const hasBiometric = device ? !!db.prepare('SELECT 1 FROM webauthn_credentials WHERE device_id = ?').get(device.id) : false;
+  res.json({ deviceTrusted: !!device, hasBiometric });
+});
+
 app.post('/api/login', (req, res) => {
-  const delay = pinBackoffMs();
-  const { pin } = req.body || {};
+  const delay = authBackoffMs();
+  const body = req.body || {};
   setTimeout(() => {
-    if (typeof pin !== 'string' || pin !== getPin()) {
-      failedPinAttempts += 1;
-      lastFailedPinAt = Date.now();
-      return res.status(401).json({ error: 'wrong pin' });
+    if (typeof body.password === 'string') {
+      const hash = getMasterPasswordHash();
+      if (!hash || !bcrypt.compareSync(body.password, hash)) {
+        recordAuthFailure();
+        return res.status(401).json({ error: 'wrong password' });
+      }
+      failedAuthAttempts = 0;
+      const existing = trustedDeviceFor(req);
+      if (existing) touchDevice(existing.id); else mintTrustedDevice(req, res);
+      setAccessCookie(req, res);
+      return res.json({ ok: true });
     }
-    failedPinAttempts = 0;
-    const isHttps = req.secure || req.headers['x-forwarded-proto'] === 'https';
-    res.cookie(ACCESS_COOKIE, ACCESS_TOKEN, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: isHttps,
-      maxAge: 1000 * 60 * 60 * 24 * 365,
-    });
-    res.json({ ok: true });
+    if (typeof body.pin === 'string') {
+      const device = trustedDeviceFor(req);
+      if (!device) return res.status(403).json({ error: 'device not trusted' });
+      if (body.pin !== getPin()) {
+        recordAuthFailure();
+        return res.status(401).json({ error: 'wrong pin' });
+      }
+      failedAuthAttempts = 0;
+      touchDevice(device.id);
+      setAccessCookie(req, res);
+      return res.json({ ok: true });
+    }
+    return res.status(400).json({ error: 'password or pin required' });
   }, delay);
 });
 
 app.post('/api/logout', (req, res) => {
+  // Only clears the session cookie -- device trust (fundus_device) is
+  // deliberately left alone so a quick logout still allows a fast PIN/
+  // fingerprint re-unlock afterwards, instead of demanding the master
+  // password again.
   res.clearCookie(ACCESS_COOKIE);
   res.json({ ok: true });
 });
 
+/* ---- WebAuthn (fingerprint/biometric) ---- */
+
+// Enrollment only ever happens once already inside the app. An
+// already-logged-in browser that predates this feature (and so has no
+// fundus_device cookie yet) is auto-promoted to a trusted device right
+// here -- it already proved access some other way, and enrolling a
+// biometric is a stronger action than that anyway.
+app.post('/api/webauthn/register/options', async (req, res) => {
+  let device = trustedDeviceFor(req);
+  if (!device) {
+    const id = mintTrustedDevice(req, res);
+    device = db.prepare('SELECT * FROM trusted_devices WHERE id = ?').get(id);
+  }
+  const existingCreds = db.prepare('SELECT id, transports FROM webauthn_credentials WHERE device_id = ?').all(device.id);
+  const options = await generateRegistrationOptions({
+    rpName: 'Fundus',
+    rpID: req.hostname,
+    userName: device.label || 'Fundus-Gerät',
+    attestationType: 'none',
+    excludeCredentials: existingCreds.map((c) => ({ id: c.id, transports: c.transports ? JSON.parse(c.transports) : undefined })),
+    authenticatorSelection: { residentKey: 'preferred', userVerification: 'preferred', authenticatorAttachment: 'platform' },
+  });
+  setChallenge(device.id, options.challenge);
+  res.json(options);
+});
+
+app.post('/api/webauthn/register/verify', async (req, res) => {
+  const device = trustedDeviceFor(req);
+  if (!device) return res.status(400).json({ error: 'no trusted device' });
+  const expectedChallenge = takeChallenge(device.id);
+  if (!expectedChallenge) return res.status(400).json({ error: 'no pending registration' });
+  let verification;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: req.body,
+      expectedChallenge,
+      expectedOrigin: requestOrigin(req),
+      expectedRPID: req.hostname,
+    });
+  } catch (e) {
+    return res.status(400).json({ error: 'verification failed' });
+  }
+  if (!verification.verified || !verification.registrationInfo) return res.status(400).json({ error: 'verification failed' });
+  const { credential } = verification.registrationInfo;
+  db.prepare('INSERT INTO webauthn_credentials (id, device_id, public_key, counter, transports) VALUES (?, ?, ?, ?, ?)')
+    .run(credential.id, device.id, Buffer.from(credential.publicKey).toString('base64'), credential.counter, JSON.stringify(credential.transports || []));
+  res.json({ ok: true });
+});
+
+app.post('/api/webauthn/login/options', async (req, res) => {
+  const device = trustedDeviceFor(req);
+  if (!device) return res.status(403).json({ error: 'device not trusted' });
+  const creds = db.prepare('SELECT id, transports FROM webauthn_credentials WHERE device_id = ?').all(device.id);
+  if (!creds.length) return res.status(404).json({ error: 'no credentials enrolled' });
+  const options = await generateAuthenticationOptions({
+    rpID: req.hostname,
+    allowCredentials: creds.map((c) => ({ id: c.id, transports: c.transports ? JSON.parse(c.transports) : undefined })),
+    userVerification: 'preferred',
+  });
+  setChallenge(device.id, options.challenge);
+  res.json(options);
+});
+
+app.post('/api/webauthn/login/verify', async (req, res) => {
+  const device = trustedDeviceFor(req);
+  if (!device) return res.status(403).json({ error: 'device not trusted' });
+  const expectedChallenge = takeChallenge(device.id);
+  if (!expectedChallenge) return res.status(400).json({ error: 'no pending login' });
+  const credRow = db.prepare('SELECT * FROM webauthn_credentials WHERE id = ? AND device_id = ?').get(req.body.id, device.id);
+  if (!credRow) return res.status(404).json({ error: 'unknown credential' });
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: req.body,
+      expectedChallenge,
+      expectedOrigin: requestOrigin(req),
+      expectedRPID: req.hostname,
+      credential: {
+        id: credRow.id,
+        publicKey: new Uint8Array(Buffer.from(credRow.public_key, 'base64')),
+        counter: credRow.counter,
+        transports: credRow.transports ? JSON.parse(credRow.transports) : undefined,
+      },
+    });
+  } catch (e) {
+    return res.status(400).json({ error: 'verification failed' });
+  }
+  if (!verification.verified) return res.status(400).json({ error: 'verification failed' });
+  db.prepare('UPDATE webauthn_credentials SET counter = ? WHERE id = ?').run(verification.authenticationInfo.newCounter, credRow.id);
+  touchDevice(device.id);
+  setAccessCookie(req, res);
+  res.json({ ok: true });
+});
+
+/* ---- trusted devices management (Settings) ---- */
+
+function trustedDeviceRow(row, currentDeviceId) {
+  const hasBiometric = !!db.prepare('SELECT 1 FROM webauthn_credentials WHERE device_id = ?').get(row.id);
+  return { id: row.id, label: row.label, createdAt: row.created_at, lastSeenAt: row.last_seen_at, hasBiometric, isThisDevice: row.id === currentDeviceId };
+}
+
+app.delete('/api/webauthn/credentials', (req, res) => {
+  const device = trustedDeviceFor(req);
+  if (!device) return res.status(400).json({ error: 'no trusted device' });
+  db.prepare('DELETE FROM webauthn_credentials WHERE device_id = ?').run(device.id);
+  res.status(204).end();
+});
+
+app.delete('/api/trusted-devices/:id', (req, res) => {
+  const current = trustedDeviceFor(req);
+  db.prepare('DELETE FROM trusted_devices WHERE id = ?').run(req.params.id);
+  if (current && current.id === req.params.id) res.clearCookie(DEVICE_COOKIE);
+  res.status(204).end();
+});
+
+
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'tag', 'intervall', 'nickname', 'gewicht'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'tag', 'intervall', 'nickname', 'gewicht', 'einkaufspreis'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
 // Track-keeping for inventar field changes -- see the audit_log table
@@ -251,7 +572,7 @@ function testTypeRow(row) {
   return { id: row.id, name: row.name, items };
 }
 
-function getFullState() {
+function getFullState(req) {
   const categories = db.prepare('SELECT * FROM categories ORDER BY sort_order').all().map(catRow);
   const standorte = db.prepare('SELECT name FROM standorte ORDER BY sort_order').all().map(r => r.name);
   const hersteller = db.prepare('SELECT name FROM hersteller ORDER BY sort_order').all().map(r => r.name);
@@ -264,6 +585,7 @@ function getFullState() {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
     else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
+    else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
@@ -272,11 +594,13 @@ function getFullState() {
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
   const tags = db.prepare('SELECT * FROM tags').all();
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
+  const currentDevice = trustedDeviceFor(req);
+  const trustedDevices = db.prepare('SELECT * FROM trusted_devices ORDER BY last_seen_at DESC').all().map(r => trustedDeviceRow(r, currentDevice && currentDevice.id));
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices };
 }
 
 app.get('/api/state', (req, res) => {
-  res.json(getFullState());
+  res.json(getFullState(req));
 });
 
 /* ---- backup ---- */
@@ -434,6 +758,11 @@ app.patch('/api/settings', (req, res) => {
     }
     upsert.run('casesRootCatId', id);
   }
+  if (req.body.masterPassword !== undefined) {
+    const pw = String(req.body.masterPassword);
+    if (pw.length < 8) return res.status(400).json({ error: 'master password must be at least 8 characters' });
+    upsert.run('masterPasswordHash', bcrypt.hashSync(pw, 10));
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
@@ -443,6 +772,7 @@ app.patch('/api/settings', (req, res) => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
     else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
+    else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   res.json({ ...schwellen, pin, userName, casesRootCatId });
@@ -457,8 +787,8 @@ app.post('/api/inventar', (req, res) => {
     return res.status(409).json({ error: 'duplicate inventory number' });
   }
   db.prepare(`
-    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, intervall, nickname, gewicht)
-    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @intervall, @nickname, @gewicht)
+    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, intervall, nickname, gewicht, einkaufspreis)
+    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @intervall, @nickname, @gewicht, @einkaufspreis)
   `).run({
     inv: b.inv, cat: b.cat, tag: b.tag || null, bez: b.bez, hersteller: b.hersteller || '', modell: b.modell || '',
     serien: b.serien || '', standort: b.standort || '', parent: b.parent || null,
@@ -467,6 +797,7 @@ app.post('/api/inventar', (req, res) => {
     menge: 1,
     intervall: b.intervall != null ? parseInt(b.intervall, 10) || null : null, nickname: b.nickname || '',
     gewicht: Math.max(0, parseInt(b.gewicht, 10) || 0),
+    einkaufspreis: b.einkaufspreis != null && b.einkaufspreis !== '' ? Number(b.einkaufspreis) : null,
   });
   logAudit('inventar', b.inv, '__created__', null, b.bez, b.actor);
   if (Array.isArray(b.checklist) && b.checklist.length) {
@@ -870,7 +1201,7 @@ function itemsAsText(items) {
 
 const EXPORT_TABLES = {
   inventar: {
-    columns: ['inv', 'cat', 'bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'menge', 'foto', 'gewicht'],
+    columns: ['inv', 'cat', 'bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'menge', 'foto', 'gewicht', 'einkaufspreis'],
     rows: () => db.prepare('SELECT * FROM inventar').all(),
   },
   vermietungen: {
