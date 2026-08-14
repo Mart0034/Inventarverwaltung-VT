@@ -218,11 +218,13 @@ async function loadState(){
 }
 
 let lastSheetKey = null;
+let lastRenderedTab = null;
 
 let ui = {
   tab:'start', sheetStack:[], search:'', fStatus:null, toast:null,
   newItemDraft:null, newRentalDraft:null, returnDraft:null,
   expandedCats: new Set(),
+  expandedSettingsCats: new Set(),
   lang: localStorage.getItem('fundus-lang') || 'de',
 };
 
@@ -332,6 +334,20 @@ function render(){
     app.addEventListener('click', onClick);
     return;
   }
+  // Preserve scroll position across re-renders, but only when it's genuinely
+  // the same screen/sheet being redrawn (e.g. toggling a category open) --
+  // not when switching tabs or opening a different sheet, which should
+  // start at the top.
+  const tabContinues = ui.tab === lastRenderedTab;
+  const prevScreen = app.querySelector('.screen');
+  const screenScroll = (tabContinues && prevScreen) ? prevScreen.scrollTop : 0;
+
+  const topSheetObj = ui.sheetStack[ui.sheetStack.length-1];
+  const upcomingSheetKey = topSheetObj ? (topSheetObj.type+':'+(topSheetObj.id||topSheetObj.inv||topSheetObj.for||'')) : null;
+  const sheetContinues = !!upcomingSheetKey && upcomingSheetKey===lastSheetKey;
+  const prevSheetBody = app.querySelector('.sheet-body');
+  const sheetScroll = (sheetContinues && prevSheetBody) ? prevSheetBody.scrollTop : 0;
+
   app.innerHTML = `
     <div class="app-shell">
       ${topbar()}
@@ -342,6 +358,13 @@ function render(){
       ${ui.sheetStack.length?sheetOverlay():''}
     </div>
   `;
+
+  const newScreen = app.querySelector('.screen');
+  if(newScreen) newScreen.scrollTop = screenScroll;
+  const newSheetBody = app.querySelector('.sheet-body');
+  if(newSheetBody) newSheetBody.scrollTop = sheetScroll;
+  lastRenderedTab = ui.tab;
+
   attachEvents();
 }
 
@@ -561,11 +584,11 @@ function screenVermietungen(){
 function renderCatEditNode(node, depth){
   const children = catChildren(node.id);
   const hasKids = children.length>0;
-  const expanded = !hasKids || ui.expandedCats.has(node.id);
+  const expanded = !hasKids || ui.expandedSettingsCats.has(node.id);
   return `
     <div class="cat-edit-node" style="margin-left:${depth*16}px;">
       <div class="cat-edit-row">
-        ${hasKids ? `<button class="cat-toggle" data-action="toggle-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
+        ${hasKids ? `<button class="cat-toggle" data-action="toggle-settings-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
         <input class="code mono" data-action="edit-cat-code" data-id="${node.id}" value="${esc(node.code)}" maxlength="4" />
         <input class="name" data-action="edit-cat-name" data-id="${node.id}" value="${esc(node.name)}" />
       </div>
@@ -1169,6 +1192,11 @@ function onClick(e){
     }
     case 'toggle-cat-expand':
       toggleCatExpand(t2.dataset.id); render(); break;
+    case 'toggle-settings-cat-expand': {
+      const id = t2.dataset.id;
+      if(ui.expandedSettingsCats.has(id)) ui.expandedSettingsCats.delete(id); else ui.expandedSettingsCats.add(id);
+      render(); break;
+    }
     case 'add-root-cat':
       doAddRootCat(); break;
     case 'add-subcat':
@@ -1314,7 +1342,7 @@ async function doAddRootCat(){
   try {
     const node = await api('POST', '/api/categories', {parent:null, name});
     state.categories.push(node);
-    ui.expandedCats.add(node.id);
+    ui.expandedSettingsCats.add(node.id);
     render();
   } catch(e){ showToast(t('toast_sync_failed')); }
 }
@@ -1323,8 +1351,8 @@ async function doAddSubcat(parentId){
   try {
     const node = await api('POST', '/api/categories', {parent:parentId, name});
     state.categories.push(node);
-    ui.expandedCats.add(parentId);
-    ui.expandedCats.add(node.id);
+    ui.expandedSettingsCats.add(parentId);
+    ui.expandedSettingsCats.add(node.id);
     render();
   } catch(e){ showToast(t('toast_sync_failed')); }
 }
