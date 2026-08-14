@@ -5,7 +5,7 @@
         "update_url": null
     },
     "exported_at": "2026-08-14T00:00:00+00:00",
-    "name": "Fundus",
+    "name": "Fundus (yolks)",
     "author": "fundus@example.com",
     "description": "Selbst gehostete Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik. Node.js + SQLite, keine externen Dienste.",
     "features": null,
