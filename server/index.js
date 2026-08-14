@@ -244,14 +244,19 @@ function getFullState() {
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
-  settingsRows.forEach(r => { if (r.key === 'pin') pin = r.value; else schwellen[r.key] = parseInt(r.value, 10); });
+  let userName = '';
+  settingsRows.forEach(r => {
+    if (r.key === 'pin') pin = r.value;
+    else if (r.key === 'userName') userName = r.value;
+    else schwellen[r.key] = parseInt(r.value, 10);
+  });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
   const vermietungen = db.prepare('SELECT * FROM vermietungen').all().map(rentalRow);
   const customers = db.prepare('SELECT * FROM customers ORDER BY name').all();
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
   const tags = db.prepare('SELECT * FROM tags').all();
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
-  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
+  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, userName, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
@@ -347,11 +352,17 @@ app.patch('/api/settings', (req, res) => {
     if (!/^\d{4}$/.test(req.body.pin)) return res.status(400).json({ error: 'pin must be exactly 4 digits' });
     upsert.run('pin', req.body.pin);
   }
+  if (req.body.userName !== undefined) upsert.run('userName', String(req.body.userName).slice(0, 60));
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
-  settingsRows.forEach(r => { if (r.key === 'pin') pin = r.value; else schwellen[r.key] = parseInt(r.value, 10); });
-  res.json({ ...schwellen, pin });
+  let userName = '';
+  settingsRows.forEach(r => {
+    if (r.key === 'pin') pin = r.value;
+    else if (r.key === 'userName') userName = r.value;
+    else schwellen[r.key] = parseInt(r.value, 10);
+  });
+  res.json({ ...schwellen, pin, userName });
 });
 
 /* ---- inventar ---- */

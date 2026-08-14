@@ -211,7 +211,7 @@ button{cursor:pointer;}
 
 .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 10px;}
 .section-head h2{font-family:'Oswald Fundus',sans-serif;font-weight:700;font-size:.95rem;text-transform:uppercase;letter-spacing:.06em;margin:0;color:var(--text-muted);}
-.section-head .link-btn{font-size:.8rem;color:var(--accent-strong);background:none;border:none;font-weight:600;}
+.link-btn{font-size:.8rem;color:var(--accent-strong);background:none;border:none;font-weight:600;padding:0;cursor:pointer;}
 
 .card-list{display:flex;flex-direction:column;gap:8px;margin-bottom:22px;}
 .item-card{
@@ -332,6 +332,10 @@ button{cursor:pointer;}
 .pill-crit{background:var(--status-crit-wash);color:var(--status-crit);}
 .pill-rented{background:var(--status-rented-wash);color:var(--status-rented);}
 .pill-off{background:var(--status-off-wash);color:var(--status-off);}
+
+.pill-stack{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}
+
+.case-child-actions{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none;}
 
 .legend-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;}
 .legend-item{display:flex;align-items:center;gap:6px;font-size:.72rem;color:var(--text-muted);}

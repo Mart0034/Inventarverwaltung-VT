@@ -25,6 +25,8 @@ const STRINGS = {
     tab_start:'Start', tab_inventar:'Inventar', tab_pruefungen:'Prüfungen', tab_vermietungen:'Vermietung', tab_mehr:'Mehr',
     title_start:'Start', title_inventar:'Inventar', title_pruefungen:'Prüfungen', title_vermietungen:'Vermietungen', title_einstellungen:'Einstellungen',
     start_welcome:'Willkommen zurück',
+    sheet_secret_settings:'Geheimes Menü', secret_settings_p:'Nur für Eingeweihte.',
+    field_username:'Name', username_placeholder:'z. B. Martin',
     start_sub:'{date} · {n} Artikel im Fundus',
     stat_total:'Gesamt', stat_available:'Verfügbar', stat_rented:'Vermietet', stat_due:'Prüfung fällig',
     due_inspections:'Fällige Prüfungen', view_all:'Alle ansehen',
@@ -86,10 +88,11 @@ const STRINGS = {
     field_bez:'Bezeichnung', field_category:'Kategorie', change:'Ändern',
     field_hersteller:'Hersteller', field_modell:'Modell', field_serien:'Seriennummer', field_miete:'Mietpreis / Tag',
     field_status:'Status', field_standort:'Standort',
-    field_flightcase:'Flightcase', opt_no_flightcase:'Kein Flightcase',
+    field_flightcase:'Ort', opt_no_flightcase:'Kein Flightcase',
     contains_title:'Enthält ({n})', contains_empty:'Enthält keine Objekte.',
     contains_short:'{n} Objekt(e)', in_case_short:'in {inv}',
     btn_add_to_case:'Objekt einpacken', flightcase_add_item_hint:'Objekt zum Einpacken auswählen.',
+    btn_remove_from_case:'Entfernen',
     already_in_case:'Bereits eingepackt', sheet_pick_flightcase:'Flightcase wählen',
     section_pruef:'Prüfung', field_letzte:'Letzte Prüfung', field_naechste:'Nächste Prüfung',
     field_notiz:'Bemerkungen',
@@ -135,6 +138,10 @@ const STRINGS = {
     bundle_add_item_hint:'Artikel zum Set hinzufügen.', already_in_set:'Bereits im Set',
     btn_select_items:'Auswählen', btn_cancel_select:'Abbrechen',
     btn_add_to_rental:'Zur Vermietung', btn_save_as_set:'Als Set speichern',
+    btn_bulk_edit:'Mehrere bearbeiten', sheet_bulk_edit:'Mehrere bearbeiten',
+    bulk_edit_hint:'Änderungen werden auf alle {n} ausgewählten Artikel angewendet. Nur ausgefüllte Felder werden geändert.',
+    opt_no_change:'— Nicht ändern —', bulk_edit_tag_hint:'Tag-Änderung nur möglich, wenn alle ausgewählten Artikel derselben Kategorie angehören.',
+    toast_bulk_edit_done:'{n} Artikel aktualisiert.', btn_apply:'Anwenden',
     sheet_stats:'Statistik', stat_total_rentals:'Vermietungen', stat_total_revenue:'Umsatz gesamt',
     stat_most_used:'Meistgenutzte Artikel', stat_revenue_generated:'erwirtschaftet',
     empty_stats:'Noch keine Vermietungen, noch keine Statistik.',
@@ -176,12 +183,15 @@ const STRINGS = {
     retry:'Erneut versuchen',
     status_Verfügbar:'Verfügbar', status_Reserviert:'Reserviert', status_Vermietet:'Vermietet',
     status_Defekt:'Defekt', 'status_In Reparatur':'In Reparatur', status_Ausgemustert:'Ausgemustert', status_Verloren:'Verloren',
+    status_partial:'Teilweise verfügbar',
     pruef_ok:'Unauffällig', pruef_warn:'Bald fällig', pruef_soon:'Bald fällig', pruef_crit:'Überfällig',
   },
   en: {
     tab_start:'Home', tab_inventar:'Inventory', tab_pruefungen:'Checks', tab_vermietungen:'Rentals', tab_mehr:'More',
     title_start:'Home', title_inventar:'Inventory', title_pruefungen:'Inspections', title_vermietungen:'Rentals', title_einstellungen:'Settings',
     start_welcome:'Welcome back',
+    sheet_secret_settings:'Secret menu', secret_settings_p:'For insiders only.',
+    field_username:'Name', username_placeholder:'e.g. Martin',
     start_sub:'{date} · {n} items in Fundus',
     stat_total:'Total', stat_available:'Available', stat_rented:'Rented', stat_due:'Checks due',
     due_inspections:'Upcoming inspections', view_all:'View all',
@@ -247,6 +257,7 @@ const STRINGS = {
     contains_title:'Contains ({n})', contains_empty:'Contains no objects.',
     contains_short:'{n} object(s)', in_case_short:'in {inv}',
     btn_add_to_case:'Pack object', flightcase_add_item_hint:'Select an object to pack.',
+    btn_remove_from_case:'Remove',
     already_in_case:'Already packed', sheet_pick_flightcase:'Select flightcase',
     section_pruef:'Inspection', field_letzte:'Last inspection', field_naechste:'Next inspection',
     field_notiz:'Notes',
@@ -292,6 +303,10 @@ const STRINGS = {
     bundle_add_item_hint:'Add an item to the set.', already_in_set:'Already in set',
     btn_select_items:'Select', btn_cancel_select:'Cancel',
     btn_add_to_rental:'To rental', btn_save_as_set:'Save as set',
+    btn_bulk_edit:'Edit selected', sheet_bulk_edit:'Edit selected',
+    bulk_edit_hint:'Changes apply to all {n} selected items. Only fields you fill in are changed.',
+    opt_no_change:'— No change —', bulk_edit_tag_hint:'Tag can only be changed when all selected items share the same category.',
+    toast_bulk_edit_done:'{n} items updated.', btn_apply:'Apply',
     sheet_stats:'Stats', stat_total_rentals:'Rentals', stat_total_revenue:'Total revenue',
     stat_most_used:'Most-used items', stat_revenue_generated:'generated',
     empty_stats:'No rentals yet, no stats yet.',
@@ -333,6 +348,7 @@ const STRINGS = {
     retry:'Retry',
     status_Verfügbar:'Available', status_Reserviert:'Reserved', status_Vermietet:'Rented',
     status_Defekt:'Broken', 'status_In Reparatur':'In repair', status_Ausgemustert:'Retired', status_Verloren:'Lost',
+    status_partial:'Partially available',
     pruef_ok:'On track', pruef_warn:'Due soon', pruef_soon:'Due soon', pruef_crit:'Overdue',
   }
 };
@@ -388,6 +404,7 @@ let ui = {
   expandedSettingsCats: new Set(),
   expandedTestTypes: new Set(),
   showArchived:false, rentalSort:'date', explorerSort:{},
+  mehrTapCount:0, mehrTapLast:0,
   lang: localStorage.getItem('fundus-lang') || 'de',
   theme: localStorage.getItem('fundus-theme') || 'system',
 };
@@ -649,7 +666,7 @@ function screenStart(){
   const pruefItems = state.inventar.filter(i=>pruefStatus(i)).sort((a,b)=>diffDays(a.naechste)-diffDays(b.naechste)).slice(0,4);
 
   return `
-    <h1 class="page-title">${t('start_welcome')}</h1>
+    <h1 class="page-title">${t('start_welcome')}${state.userName? ', '+esc(state.userName) : ''}</h1>
     <p class="page-sub">${t('start_sub',{date:fmtDateLong(TODAY),n:total})}</p>
 
     <div class="stat-grid">
@@ -681,6 +698,18 @@ function tagLabel(tagId){
 
 function childCountOf(inv){ return state.inventar.filter(x=>x.parent===inv).length; }
 
+// A case's own status only tells half the story -- it can say "Verfügbar"
+// while something packed inside it is actually out on a rental or broken.
+// Checks direct contents only (not nested cases-within-cases).
+function caseAvailability(i){
+  if(i.status!=='Verfügbar') return { label: statusLabel(i.status), cls: statusPillClass(i.status) };
+  const children = state.inventar.filter(x=>x.parent===i.inv);
+  const allAvailable = children.every(c=>c.status==='Verfügbar');
+  return allAvailable
+    ? { label: statusLabel(i.status), cls: statusPillClass(i.status) }
+    : { label: t('status_partial'), cls: 'pill-warn' };
+}
+
 function itemCard(i, showPruef, selectable){
   const ps = pruefStatus(i);
   const cls = showPruef && ps ? ps : '';
@@ -695,7 +724,11 @@ function itemCard(i, showPruef, selectable){
   const pill = showPruef && ps
     ? `<span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span>`
     : contentCount>0
-      ? `<span class="pill pill-off">${t('contains_short',{n:contentCount})}</span>`
+      ? (()=>{ const ca = caseAvailability(i); return `
+        <span class="pill-stack">
+          <span class="pill pill-off">${t('contains_short',{n:contentCount})}</span>
+          <span class="pill ${ca.cls}">${ca.label}</span>
+        </span>`; })()
       : bulk
       ? `<span class="pill ${avail>0?'pill-ok':'pill-rented'}">${t('available_of',{n:avail,m:i.menge})}</span>`
       : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
@@ -775,6 +808,7 @@ function selectActionBar(){
   return `
     <div class="select-action-bar">
       <span class="field-hint" style="margin:0;">${t('n_selected',{n:ui.selectedInv.size})}</span>
+      <button class="btn btn-secondary" data-action="open-bulk-edit">${t('btn_bulk_edit')}</button>
       <button class="btn btn-secondary" data-action="bulk-add-to-rental">${t('btn_add_to_rental')}</button>
       <button class="btn btn-primary" data-action="bulk-save-as-set">${t('btn_save_as_set')}</button>
     </div>`;
@@ -1180,7 +1214,9 @@ function sheetOverlay(){
   else if(s.type==='stats'){ title = t('sheet_stats'); body = statsSheet(); }
   else if(s.type==='data-explorer'){ title = t('sheet_data_explorer'); body = dataExplorerSheet(); }
   else if(s.type==='flightcases'){ title = t('nav_flightcases'); body = flightcasesSheet(); }
+  else if(s.type==='bulk-edit'){ title = t('sheet_bulk_edit'); body = bulkEditSheet(); }
   else if(s.type==='test-types'){ title = t('nav_test_types'); body = testTypesSheet(); }
+  else if(s.type==='secret-settings'){ title = t('sheet_secret_settings'); body = secretSettingsSheet(); }
 
   const canBack = ui.sheetStack.length>1;
   const key = s.type+':'+(s.id||s.inv||s.for||'');
@@ -1285,13 +1321,17 @@ function itemDetailSheet(i){
     ${children.length? `
       <div class="card-list" style="margin-bottom:10px;">
         ${children.map(c=>`
-          <button class="item-card" data-action="open-item" data-inv="${c.inv}">
-            <div class="ic-body">
+          <div class="item-card">
+            <button class="ic-body" data-action="open-item" data-inv="${c.inv}" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;">
               <span class="inv-num mono">${c.inv}</span>
               <span class="ic-title">${esc(c.bez)}</span>
               <span class="ic-meta">${esc(c.standort)}</span>
+            </button>
+            <div class="case-child-actions">
+              <button class="link-btn" data-action="open-flightcase-picker" data-inv="${c.inv}">${t('change')}</button>
+              <button class="link-btn" data-action="remove-item-flightcase" data-inv="${c.inv}">${t('btn_remove_from_case')}</button>
             </div>
-          </button>
+          </div>
         `).join('')}
       </div>
     ` : `<p class="field-hint" style="margin-bottom:10px;">${t('contains_empty')}</p>`}
@@ -1544,11 +1584,16 @@ function newItemSheet(){
 
 function pickFlightcaseSheet(s){
   const isDraft = s.for==='draft';
-  const currentInv = isDraft ? null : s.inv;
+  const isBulk = s.for==='bulk';
+  const currentInv = (!isDraft && !isBulk) ? s.inv : null;
   // Guard against trivial cycles: can't pack an item into itself or into
   // something it already directly contains. A draft item has no inv yet,
-  // so it can't already contain anything -- nothing to exclude.
-  const excluded = isDraft ? new Set() : new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
+  // so it can't already contain anything -- nothing to exclude. For a bulk
+  // edit, just exclude the selected items themselves (no deeper cycle
+  // detection, consistent with the single-item picker above).
+  const excluded = isDraft ? new Set()
+    : isBulk ? new Set(ui.selectedInv)
+    : new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
   // Flightcases can only be items filed under category 006 (Cases & Transport).
   const casesRoot = casesRootCat();
   const rootChildren = casesRoot ? catChildren(casesRoot.id) : [];
@@ -1937,6 +1982,60 @@ function returnSheet(v){
 
 /* ---------- customers ---------- */
 
+function bulkEditSheet(){
+  const d = ui.bulkEditDraft || (ui.bulkEditDraft = { status:'', standort:'', tag:'__nochange__', flightcaseTouched:false, flightcase:null });
+  const items = [...ui.selectedInv].map(inv=>byInv(inv)).filter(Boolean);
+  const cats = new Set(items.map(i=>i.cat));
+  const uniformCat = cats.size===1 ? [...cats][0] : null;
+  const tagOptions = uniformCat ? state.tags.filter(tg=>tg.cat===uniformCat) : [];
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('bulk_edit_hint',{n:items.length})}</p>
+    <div class="card-list" style="margin-bottom:14px;max-height:180px;overflow-y:auto;">
+      ${items.map(i=>`
+        <div class="item-card" style="cursor:default;">
+          <div class="ic-body">
+            <span class="inv-num mono">${i.inv}</span>
+            <span class="ic-title">${esc(i.bez)}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="field">
+      <label>${t('field_status')}</label>
+      <select data-action="bulk-edit-field" data-field="status">
+        <option value="">${t('opt_no_change')}</option>
+        ${state.statusListe.map(s=>`<option value="${s}" ${d.status===s?'selected':''}>${statusLabel(s)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>${t('field_standort')}</label>
+      <select data-action="bulk-edit-field" data-field="standort">
+        <option value="">${t('opt_no_change')}</option>
+        ${state.standorte.map(s=>`<option value="${s}" ${d.standort===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>${t('field_flightcase')}</label>
+      <button type="button" class="cat-picker-btn" data-action="open-flightcase-picker-bulk">
+        <span>${!d.flightcaseTouched ? t('opt_no_change') : (d.flightcase && byInv(d.flightcase) ? esc(byInv(d.flightcase).inv+' – '+byInv(d.flightcase).bez) : t('opt_no_flightcase'))}</span>${ICONS.chevRight}
+      </button>
+    </div>
+    ${uniformCat && tagOptions.length ? `
+      <div class="field">
+        <label>${t('field_tag')}</label>
+        <select data-action="bulk-edit-field" data-field="tag">
+          <option value="__nochange__" ${d.tag==='__nochange__'?'selected':''}>${t('opt_no_change')}</option>
+          <option value="" ${d.tag===''?'selected':''}>${t('opt_no_tag')}</option>
+          ${tagOptions.map(tg=>`<option value="${tg.id}" ${d.tag===tg.id?'selected':''}>${esc(catPathCodes(tg.cat))}.${esc(tg.code)} — ${esc(tg.name)}</option>`).join('')}
+        </select>
+      </div>
+    ` : cats.size>1 ? `<p class="field-hint">${t('bulk_edit_tag_hint')}</p>` : ''}
+    <div class="btn-row">
+      <button class="btn btn-primary" data-action="apply-bulk-edit">${t('btn_apply')}</button>
+    </div>
+  `;
+}
+
 function flightcasesSheet(){
   const casesRoot = casesRootCat();
   const ids = casesRoot ? descendantCatIds(casesRoot.id) : [];
@@ -1969,6 +2068,18 @@ function testTypesSheet(){
       <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
       <button data-action="add-test-type">${t('add')}</button>
     </div>
+  `;
+}
+
+function secretSettingsSheet(){
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('secret_settings_p')}</p>
+    <div class="field">
+      <label>${t('field_username')}</label>
+      <input type="text" data-action="edit-setting" data-field="userName" value="${esc(state.userName||'')}" placeholder="${t('username_placeholder')}" maxlength="60" />
+    </div>
+    <div class="divider"></div>
+    <p class="field-hint">Made by Martin Weiner, 08. 2026</p>
   `;
 }
 
@@ -2348,8 +2459,24 @@ function onClick(e){
   switch(action){
     case 'retry-load':
       loadState(); break;
-    case 'tab':
-      ui.tab = t2.dataset.tab; ui.sheetStack=[]; render(); break;
+    case 'tab': {
+      ui.tab = t2.dataset.tab; ui.sheetStack=[];
+      // Easter egg: tapping the "Mehr" tab 8 times in quick succession opens
+      // a hidden settings panel. Any pause over 1.5s resets the count.
+      if(t2.dataset.tab==='einstellungen'){
+        const now = Date.now();
+        if(now - ui.mehrTapLast > 1500) ui.mehrTapCount = 0;
+        ui.mehrTapLast = now;
+        ui.mehrTapCount += 1;
+        if(ui.mehrTapCount >= 8){
+          ui.mehrTapCount = 0;
+          ui.sheetStack = [{type:'secret-settings'}];
+        }
+      } else {
+        ui.mehrTapCount = 0;
+      }
+      render(); break;
+    }
     case 'tab-search':
       ui.tab = t2.dataset.tab; ui.sheetStack=[]; render();
       requestAnimationFrame(()=>document.getElementById('search-input')?.focus());
@@ -2374,8 +2501,17 @@ function onClick(e){
       pushSheet({type:'pick-flightcase', for:'item', inv:t2.dataset.inv}); break;
     case 'open-flightcase-picker-draft':
       pushSheet({type:'pick-flightcase', for:'draft'}); break;
+    case 'open-flightcase-picker-bulk':
+      pushSheet({type:'pick-flightcase', for:'bulk'}); break;
     case 'open-flightcase-add-item':
       pushSheet({type:'flightcase-add-item', inv:t2.dataset.inv}); break;
+    case 'remove-item-flightcase': {
+      const item = byInv(t2.dataset.inv);
+      item.parent = null;
+      render();
+      api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {parent: null}).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
     case 'assign-flightcase': {
       const top = topSheet();
       const caseInv = t2.dataset.case || null;
@@ -2383,6 +2519,10 @@ function onClick(e){
       if(top.for==='draft'){
         ui.newItemDraft.flightcase = caseInv;
         if(box) ui.newItemDraft.standort = box.standort;
+        popSheet();
+      } else if(top.for==='bulk'){
+        ui.bulkEditDraft.flightcaseTouched = true;
+        ui.bulkEditDraft.flightcase = caseInv;
         popSheet();
       } else {
         const item = byInv(top.inv);
@@ -2677,6 +2817,30 @@ function onClick(e){
       pushSheet({type:'flightcases'}); break;
     case 'open-test-types':
       pushSheet({type:'test-types'}); break;
+    case 'open-bulk-edit':
+      ui.bulkEditDraft = null; pushSheet({type:'bulk-edit'}); break;
+    case 'apply-bulk-edit': {
+      const d = ui.bulkEditDraft;
+      const invs = [...ui.selectedInv];
+      invs.forEach(inv=>{
+        const item = byInv(inv);
+        if(!item) return;
+        const patch = {};
+        if(d.status){ item.status = d.status; patch.status = d.status; }
+        if(d.standort){ item.standort = d.standort; patch.standort = d.standort; }
+        if(d.tag!=='__nochange__'){ item.tag = d.tag||null; patch.tag = item.tag; }
+        if(d.flightcaseTouched){
+          item.parent = d.flightcase;
+          patch.parent = d.flightcase;
+          if(d.flightcase){ const box = byInv(d.flightcase); if(box){ item.standort = box.standort; patch.standort = box.standort; } }
+        }
+        if(Object.keys(patch).length) api('PATCH', `/api/inventar/${encodeURIComponent(inv)}`, patch).catch(()=>showToast(t('toast_sync_failed')));
+      });
+      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {}; ui.bulkEditDraft = null;
+      closeSheets();
+      showToast(t('toast_bulk_edit_done',{n:invs.length}));
+      break;
+    }
     case 'lock-now':
       api('POST', '/api/logout').finally(()=>location.reload());
       break;
@@ -2738,6 +2902,17 @@ function onChange(e){
     const field = t2.dataset.field;
     d[field] = t2.type==='checkbox' ? t2.checked : t2.value;
     if(field==='pruef') render();
+    return;
+  }
+  if(action==='bulk-edit-field'){
+    ui.bulkEditDraft[t2.dataset.field] = t2.value;
+    return;
+  }
+  if(action==='edit-setting'){
+    const field = t2.dataset.field;
+    state[field] = t2.value;
+    api('PATCH', '/api/settings', {[field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    render();
     return;
   }
   if(action==='draft-rental'){
