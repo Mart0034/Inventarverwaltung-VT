@@ -1,0 +1,52 @@
+{
+    "_comment": "Fundus - Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2026-08-14T00:00:00+00:00",
+    "name": "Fundus",
+    "author": "fundus@example.com",
+    "description": "Selbst gehostete Inventar- und Vermietungsverwaltung fuer Veranstaltungstechnik. Node.js + SQLite, keine externen Dienste.",
+    "features": null,
+    "docker_images": {
+        "Node 22 (Debian slim)": "node:22-slim"
+    },
+    "file_denylist": [],
+    "startup": "PORT={{SERVER_PORT}} node server/index.js",
+    "config": {
+        "files": "{}",
+        "startup": "{\r\n    \"done\": \"Fundus l\\u00e4uft auf\"\r\n}",
+        "logs": "{}",
+        "stop": "^C"
+    },
+    "scripts": {
+        "installation": {
+            "script": "#!/bin/bash\nset -e\napt-get update -y\napt-get install -y git ca-certificates\n\ncd /mnt/server\n\nBRANCH=\"${GIT_BRANCH:-claude/equipment-rental-app-ideas-9gdoj4}\"\nREPO=\"${GIT_REPO:-https://github.com/Mart0034/Inventarverwaltung-VT.git}\"\n\necho \"Cloning ${REPO} (branch: ${BRANCH}) ...\"\nrm -rf /tmp/fundus-src\ngit clone --branch \"${BRANCH}\" --single-branch \"${REPO}\" /tmp/fundus-src\nrm -rf /tmp/fundus-src/.git\n\n# Overwrite app files with the latest version. The repo never contains a\n# data/ directory, so this step never touches the persisted database.\ncp -r /tmp/fundus-src/. /mnt/server/\nrm -rf /tmp/fundus-src\n\nnpm install --omit=dev\n\necho \"Installation abgeschlossen.\"\n",
+            "container": "node:22-slim",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "Git Branch",
+            "description": "Welcher Branch des Repos beim (Neu-)Installieren geklont werden soll.",
+            "env_variable": "GIT_BRANCH",
+            "default_value": "claude/equipment-rental-app-ideas-9gdoj4",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:191",
+            "field_type": "text"
+        },
+        {
+            "name": "Git Repository",
+            "description": "Repository-URL, aus der installiert wird.",
+            "env_variable": "GIT_REPO",
+            "default_value": "https://github.com/Mart0034/Inventarverwaltung-VT.git",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|string|max:191",
+            "field_type": "text"
+        }
+    ]
+}
