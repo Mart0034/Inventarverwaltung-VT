@@ -1,10 +1,22 @@
 const express = require('express');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const db = require('./db');
 
 const app = express();
 app.use(express.json());
+
+const BACKUP_TOKEN_FILE = path.join(db.DATA_DIR, 'backup-token.txt');
+function getOrCreateBackupToken() {
+  if (fs.existsSync(BACKUP_TOKEN_FILE)) {
+    return fs.readFileSync(BACKUP_TOKEN_FILE, 'utf8').trim();
+  }
+  const token = crypto.randomBytes(24).toString('hex');
+  fs.writeFileSync(BACKUP_TOKEN_FILE, token);
+  return token;
+}
+const BACKUP_TOKEN = getOrCreateBackupToken();
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
 const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat'];
@@ -27,11 +39,26 @@ function getFullState() {
   settingsRows.forEach(r => { schwellen[r.key] = parseInt(r.value, 10); });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
   const vermietungen = db.prepare('SELECT * FROM vermietungen').all().map(rentalRow);
-  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, inventar, vermietungen };
+  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, inventar, vermietungen, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
   res.json(getFullState());
+});
+
+/* ---- backup ---- */
+
+app.get('/api/backup', (req, res) => {
+  const auth = req.headers.authorization || '';
+  const provided = auth.startsWith('Bearer ') ? auth.slice(7) : req.query.token;
+  if (!provided || provided !== BACKUP_TOKEN) {
+    return res.status(403).json({ error: 'forbidden' });
+  }
+  // SQLite runs in WAL mode -- recent writes may still be sitting in the
+  // -wal file rather than the main database file. Checkpoint first so the
+  // exported file is actually complete and self-contained.
+  db.pragma('wal_checkpoint(TRUNCATE)');
+  res.download(path.join(db.DATA_DIR, 'fundus.db'));
 });
 
 /* ---- categories ---- */

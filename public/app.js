@@ -49,10 +49,11 @@ const STRINGS = {
     thresh_title:'Prüf-Warnschwellen', thresh_yellow:'Gelb ab (Tage vor Fälligkeit)', thresh_orange:'Orange ab (Tage vor Fälligkeit)',
     lang_title:'Sprache',
     data_title:'Daten & Sicherheit',
-    data_p:'Diese Ansicht ist eine Konzept-Vorschau: Daten liegen nur im Speicher dieses Browsertabs und gehen beim Schließen verloren. In der echten App ist geplant:',
-    data_li1:'Verschlüsselte Cloud-Datenbank (EU-Region)',
-    data_li2:'Automatische, tägliche Backups in eigenen Cloud-Speicher',
-    data_li3:'Login-Schutz für die Anwendung',
+    data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung. Aktuell ohne Login geschützt — jeder mit dem Link hat Zugriff.',
+    backup_title:'Datensicherung',
+    backup_p:'Tägliches automatisches Backup in ein privates GitHub-Repository, eingerichtet über eine geplante GitHub Action. Dieser Schlüssel schützt den Backup-Zugriff — nur zusammen mit der Action einrichten, nicht öffentlich teilen.',
+    backup_token_label:'Backup-Schlüssel',
+    backup_url_label:'Backup-Adresse',
     field_bez:'Bezeichnung', field_category:'Kategorie', change:'Ändern',
     field_hersteller:'Hersteller', field_modell:'Modell', field_serien:'Seriennummer', field_miete:'Mietpreis / Tag',
     field_status:'Status', field_standort:'Standort', field_parent:'Übergeordnetes Objekt', opt_none:'Kein',
@@ -125,10 +126,11 @@ const STRINGS = {
     thresh_title:'Inspection warning thresholds', thresh_yellow:'Yellow from (days before due)', thresh_orange:'Orange from (days before due)',
     lang_title:'Language',
     data_title:'Data & security',
-    data_p:'This view is a concept preview: data lives only in this browser tab’s memory and is lost when you close it. The real app is planned to have:',
-    data_li1:'Encrypted cloud database (EU region)',
-    data_li2:'Automatic daily backups to your own cloud storage',
-    data_li3:'Login protection for the application',
+    data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection. Currently unprotected by a login — anyone with the link has access.',
+    backup_title:'Backups',
+    backup_p:'Automatic daily backup to a private GitHub repository, set up via a scheduled GitHub Action. This key protects backup access — set it up together with the Action only, don\'t share it publicly.',
+    backup_token_label:'Backup key',
+    backup_url_label:'Backup address',
     field_bez:'Name', field_category:'Category', change:'Change',
     field_hersteller:'Manufacturer', field_modell:'Model', field_serien:'Serial number', field_miete:'Rental price / day',
     field_status:'Status', field_standort:'Location', field_parent:'Parent object', opt_none:'None',
@@ -354,7 +356,6 @@ function topbar(){
       <span class="brand-mark">JR</span>
     </button>
     <div class="topbar-title">${screenTitle()}</div>
-    <span class="concept-pill">${t('concept')}</span>
   </header>`;
 }
 
@@ -682,17 +683,26 @@ function screenEinstellungen(){
       </div>
     </div>
 
+    <div class="settings-card">
+      <h3>${t('backup_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('backup_p')}</p>
+      <div class="field">
+        <label>${t('backup_url_label')}</label>
+        <input type="text" class="mono" readonly value="${esc(backupUrl())}" onclick="this.select()" />
+      </div>
+      <div class="field">
+        <label>${t('backup_token_label')}</label>
+        <input type="text" class="mono" readonly value="${esc(state.backupToken||'')}" onclick="this.select()" />
+      </div>
+    </div>
+
     <div class="info-card">
       <h3>${t('data_title')}</h3>
       <p>${t('data_p')}</p>
-      <ul>
-        <li>${t('data_li1')}</li>
-        <li>${t('data_li2')}</li>
-        <li>${t('data_li3')}</li>
-      </ul>
     </div>
   `;
 }
+function backupUrl(){ return window.location.origin + '/api/backup'; }
 
 /* ---------- sheets ---------- */
 

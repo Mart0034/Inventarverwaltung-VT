@@ -136,3 +136,4 @@ function seedIfEmpty() {
 seedIfEmpty();
 
 module.exports = db;
+module.exports.DATA_DIR = DATA_DIR;

@@ -176,12 +176,6 @@ button{cursor:pointer;}
   min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-.concept-pill{
-  font-size:.66rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
-  color:var(--accent-strong);background:var(--accent-wash);
-  border:1px solid var(--border-strong);
-  padding:3px 8px;border-radius:100px;flex:none;
-}
 .icon-btn{
   width:34px;height:34px;border-radius:9px;border:1px solid var(--border);
   background:var(--surface);display:flex;align-items:center;justify-content:center;
