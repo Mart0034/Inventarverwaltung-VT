@@ -204,7 +204,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag', 'intervall', 'nickname'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
 function catRow(row) {
@@ -358,14 +358,15 @@ app.post('/api/inventar', (req, res) => {
     return res.status(409).json({ error: 'duplicate inventory number' });
   }
   db.prepare(`
-    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge)
-    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge)
+    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, intervall, nickname)
+    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @intervall, @nickname)
   `).run({
     inv: b.inv, cat: b.cat, tag: b.tag || null, bez: b.bez, hersteller: b.hersteller || '', modell: b.modell || '',
     serien: b.serien || '', standort: b.standort || '', parent: b.parent || null,
     status: b.status || 'Verfügbar', miete: b.miete || 0, pruef: b.pruef ? 1 : 0,
     letzte: b.letzte || null, naechste: b.naechste || null, notiz: b.notiz || '',
-    menge: Math.max(1, parseInt(b.menge, 10) || 1)
+    menge: Math.max(1, parseInt(b.menge, 10) || 1),
+    intervall: b.intervall != null ? parseInt(b.intervall, 10) || null : null, nickname: b.nickname || ''
   });
   if (Array.isArray(b.checklist) && b.checklist.length) {
     const insertItem = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order) VALUES (?, ?, ?, 0, ?)');

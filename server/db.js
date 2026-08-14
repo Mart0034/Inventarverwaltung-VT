@@ -43,7 +43,9 @@ db.exec(`
     naechste TEXT,
     notiz TEXT DEFAULT '',
     menge INTEGER NOT NULL DEFAULT 1,
-    foto TEXT DEFAULT ''
+    foto TEXT DEFAULT '',
+    intervall INTEGER,
+    nickname TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS customers (
@@ -143,6 +145,8 @@ function ensureColumn(table, column, ddl) {
 ensureColumn('inventar', 'menge', "menge INTEGER NOT NULL DEFAULT 1");
 ensureColumn('inventar', 'foto', "foto TEXT DEFAULT ''");
 ensureColumn('inventar', 'tag', 'tag TEXT REFERENCES tags(id)');
+ensureColumn('inventar', 'intervall', 'intervall INTEGER');
+ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
 

@@ -264,6 +264,19 @@ button{cursor:pointer;}
 .file-row .file-size{font-size:.72rem;color:var(--text-faint);flex:none;}
 .file-row .link-btn{flex:none;}
 
+.case-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:12px 13px;box-shadow:var(--shadow-card);margin-bottom:10px;
+}
+.case-card .case-head{
+  display:flex;flex-direction:column;text-align:left;background:none;border:none;
+  padding:0;cursor:pointer;width:100%;margin-bottom:8px;
+}
+.case-card .case-head .inv-num{font-size:.7rem;color:var(--text-faint);display:block;margin-bottom:2px;}
+.case-card .case-head .ic-title{font-weight:600;font-size:.94rem;}
+.case-card .field{margin-bottom:6px;}
+.case-card .case-contents{font-size:.76rem;color:var(--text-muted);}
+
 .tool-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
 .tool-btn{
   display:inline-flex;align-items:center;gap:6px;

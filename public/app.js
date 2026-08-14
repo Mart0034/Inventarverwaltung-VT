@@ -54,9 +54,13 @@ const STRINGS = {
     field_tag:'Tag (optional)', opt_no_tag:'— Kein Tag —',
     field_test_types:'Prüfarten', field_checklist_preview:'Checkliste (Vorschau)', field_checklist:'Checkliste',
     checklist_empty:'Noch keine Checklisten-Einträge.', checklist_extra_placeholder:'Weiterer Punkt …',
-    test_types_title:'Prüfarten', test_types_p:'Prüfarten mit ihrer Standard-Checkliste. Beim Anlegen eines prüfpflichtigen Artikels lassen sich passende Prüfarten auswählen — ihre Checkliste wird übernommen und lässt sich individuell ergänzen.',
+    test_types_p:'Prüfarten mit ihrer Standard-Checkliste. Beim Anlegen eines prüfpflichtigen Artikels lassen sich passende Prüfarten auswählen — ihre Checkliste wird übernommen und lässt sich individuell ergänzen.',
     test_type_name_placeholder:'Neue Prüfart …',
     confirm_delete_test_type:'Diese Prüfart wirklich löschen? Bereits angelegte Artikel behalten ihre Checkliste.',
+    toast_test_type_already_added:'Prüfart bereits vollständig enthalten.',
+    nav_flightcases:'Cases', flightcases_p:'Alle Flightcases und Rackcases mit Spitzname und Inhalt auf einen Blick.',
+    empty_flightcases:'Noch keine Cases angelegt.',
+    field_nickname:'Spitzname', nickname_placeholder:'z. B. „Blaues Case"',
     btn_archive:'Archivieren', btn_unarchive:'Aus Archiv holen',
     btn_delete_rental:'Vermietung löschen', btn_delete_item:'Artikel löschen',
     nav_archive:'Archiv', nav_active_rentals:'Aktuelle',
@@ -207,9 +211,13 @@ const STRINGS = {
     field_tag:'Tag (optional)', opt_no_tag:'— No tag —',
     field_test_types:'Test types', field_checklist_preview:'Checklist (preview)', field_checklist:'Checklist',
     checklist_empty:'No checklist items yet.', checklist_extra_placeholder:'Another item …',
-    test_types_title:'Test types', test_types_p:'Test types with their default checklist. When creating an item that requires inspection, pick the matching type(s) -- their checklist is copied in and can be adjusted per item.',
+    test_types_p:'Test types with their default checklist. When creating an item that requires inspection, pick the matching type(s) -- their checklist is copied in and can be adjusted per item.',
     test_type_name_placeholder:'New test type …',
     confirm_delete_test_type:'Delete this test type? Items that already used it keep their checklist.',
+    toast_test_type_already_added:'Test type already fully included.',
+    nav_flightcases:'Cases', flightcases_p:'All flightcases and rackcases with nickname and contents at a glance.',
+    empty_flightcases:'No cases yet.',
+    field_nickname:'Nickname', nickname_placeholder:'e.g. "Blue case"',
     btn_archive:'Archive', btn_unarchive:'Restore from archive',
     btn_delete_rental:'Delete rental', btn_delete_item:'Delete item',
     nav_archive:'Archive', nav_active_rentals:'Current',
@@ -399,6 +407,10 @@ function catPathNames(id){ return catPath(id).map(n=>n.name).join(' › '); }
 function catPathCodes(id){ return catPath(id).map(n=>n.code).join('.'); }
 function catRootOf(id){ const p=catPath(id); return p.length ? p[0].id : null; }
 function descendantCatIds(id){ const out=[id]; catChildren(id).forEach(c=>out.push(...descendantCatIds(c.id))); return out; }
+// Cases & Transport (category code 006) and its subcategories -- items filed
+// there are flightcases/rackcases, which is where a nickname is useful.
+function casesRootCat(){ return catRoots().find(r=>r.code==='006') || null; }
+function isCaseCat(catId){ const root = casesRootCat(); return !!root && descendantCatIds(root.id).includes(catId); }
 function firstLeafDefault(){
   const root = catRoots()[0];
   if(!root) return null;
@@ -784,6 +796,7 @@ function screenInventar(){
   const selectToggle = `
     <div class="tool-row">
       <button class="tool-btn" data-action="toggle-select-mode">${ui.selectMode? t('btn_cancel_select') : t('btn_select_items')}</button>
+      <button class="tool-btn" data-action="open-flightcases">${ICONS.crate}${t('nav_flightcases')}</button>
     </div>
   `;
 
@@ -822,6 +835,9 @@ function screenPruefungen(){
   return `
     <h1 class="page-title">${t('title_pruefungen')}</h1>
     <p class="page-sub">${t('pruef_sub',{n:items.length})}</p>
+    <div class="tool-row">
+      <button class="tool-btn" data-action="open-test-types">${t('nav_test_types')}</button>
+    </div>
     <div class="legend-row">
       <span class="legend-item"><span class="legend-dot" style="background:var(--status-ok)"></span>${t('legend_far',{n:state.schwellen.gelb})}</span>
       <span class="legend-item"><span class="legend-dot" style="background:var(--status-warn)"></span>${t('legend_within',{n:state.schwellen.gelb})}</span>
@@ -1060,16 +1076,6 @@ function screenEinstellungen(){
     </div>
 
     <div class="settings-card">
-      <h3>${t('test_types_title')}</h3>
-      <p class="field-hint" style="margin-bottom:10px;">${t('test_types_p')}</p>
-      ${state.testTypes.map(tt=>renderTestTypeEditor(tt)).join('')}
-      <div class="add-inline" style="margin-top:6px;">
-        <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
-        <button data-action="add-test-type">${t('add')}</button>
-      </div>
-    </div>
-
-    <div class="settings-card">
       <h3>${t('thresh_title')}</h3>
       <div class="thresh-row">
         <label>${t('thresh_yellow')}</label>
@@ -1173,6 +1179,8 @@ function sheetOverlay(){
   else if(s.type==='timeline'){ title = t('sheet_timeline'); body = timelineSheet(); }
   else if(s.type==='stats'){ title = t('sheet_stats'); body = statsSheet(); }
   else if(s.type==='data-explorer'){ title = t('sheet_data_explorer'); body = dataExplorerSheet(); }
+  else if(s.type==='flightcases'){ title = t('nav_flightcases'); body = flightcasesSheet(); }
+  else if(s.type==='test-types'){ title = t('nav_test_types'); body = testTypesSheet(); }
 
   const canBack = ui.sheetStack.length>1;
   const key = s.type+':'+(s.id||s.inv||s.for||'');
@@ -1202,6 +1210,13 @@ function itemDetailSheet(i){
       <input type="text" data-action="edit-item" data-field="bez" data-inv="${i.inv}" value="${esc(i.bez)}" />
     </div>
     <span class="pill ${statusPillClass(i.status)}" style="margin-bottom:14px;display:inline-block;">${statusLabel(i.status)}</span>
+
+    ${isCaseCat(i.cat) ? `
+      <div class="field">
+        <label>${t('field_nickname')}</label>
+        <input type="text" data-action="edit-item" data-field="nickname" data-inv="${i.inv}" value="${esc(i.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
+      </div>
+    ` : ''}
 
     <div class="field">
       <label>${t('field_photo')}</label>
@@ -1282,13 +1297,30 @@ function itemDetailSheet(i){
     ` : `<p class="field-hint" style="margin-bottom:10px;">${t('contains_empty')}</p>`}
     <button class="btn btn-secondary" data-action="open-flightcase-add-item" data-inv="${i.inv}" style="margin-bottom:14px;">${t('btn_add_to_case')}</button>
 
+    <div class="checkbox-field" style="margin-top:6px;">
+      <input type="checkbox" id="item-pruef-${i.inv}" data-action="edit-item" data-field="pruef" data-inv="${i.inv}" ${i.pruef?'checked':''} />
+      <label for="item-pruef-${i.inv}">${t('check_pruefpflicht')}</label>
+    </div>
     ${i.pruef ? `
-      <div class="section-head" style="margin-top:4px;"><h2>${t('section_pruef')}</h2><span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span></div>
-      <div class="detail-grid">
-        <div class="detail-item"><span class="dl-label">${t('field_letzte')}</span><span class="dl-value mono">${fmtDate(i.letzte)}</span></div>
-        <div class="detail-item"><span class="dl-label">${t('field_naechste')}</span><span class="dl-value mono">${fmtDate(i.naechste)}</span></div>
-        <div class="detail-item span2"><span class="dl-label">${t('field_status')}</span><span class="dl-value">${pruefLabel(i)}</span></div>
+      <div class="section-head" style="margin-top:10px;"><h2>${t('section_pruef')}</h2><span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span></div>
+      <div class="field-row">
+        <div class="field"><label>${t('field_letzte')}</label><input type="date" data-action="edit-item" data-field="letzte" data-inv="${i.inv}" value="${esc(i.letzte||'')}" /></div>
+        <div class="field"><label>${t('field_intervall')}</label><input type="number" min="1" data-action="edit-item" data-field="intervall" data-inv="${i.inv}" value="${i.intervall||12}" /></div>
       </div>
+      <div class="detail-grid">
+        <div class="detail-item"><span class="dl-label">${t('field_naechste')}</span><span class="dl-value mono">${fmtDate(i.naechste)}</span></div>
+        <div class="detail-item"><span class="dl-label">${t('field_status')}</span><span class="dl-value">${pruefLabel(i)}</span></div>
+      </div>
+      ${state.testTypes.length? `
+        <div class="field">
+          <label>${t('field_test_types')}</label>
+          <div class="checkbox-list">
+            ${state.testTypes.map(tt=>`
+              <button type="button" class="add-link top" data-action="add-item-test-type" data-inv="${i.inv}" data-id="${tt.id}">+ ${esc(tt.name)}</button>
+            `).join('')}
+          </div>
+        </div>
+      ` : ''}
       <div class="field">
         <label>${t('field_checklist')}</label>
         ${i.checklist.length? `
@@ -1357,7 +1389,7 @@ function newItemSheet(){
     inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
     miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1,
-    testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[]
+    testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[], nickname:''
   });
   const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
   return `
@@ -1374,6 +1406,12 @@ function newItemSheet(){
           <option value="">${t('opt_no_tag')}</option>
           ${availableTags.map(tg=>`<option value="${tg.id}" ${d.tag===tg.id?'selected':''}>${esc(catPathCodes(tg.cat))}.${esc(tg.code)} — ${esc(tg.name)}</option>`).join('')}
         </select>
+      </div>
+    ` : ''}
+    ${isCaseCat(d.cat) ? `
+      <div class="field">
+        <label>${t('field_nickname')}</label>
+        <input type="text" data-action="draft-item" data-field="nickname" value="${esc(d.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
       </div>
     ` : ''}
     <div class="field">
@@ -1424,6 +1462,12 @@ function newItemSheet(){
         </select>
       </div>
       <div class="field"><label>${t('field_menge')}</label><input type="number" min="1" data-action="draft-item" data-field="menge" value="${esc(d.menge)}" /></div>
+    </div>
+    <div class="field">
+      <label>${t('field_status')}</label>
+      <select data-action="draft-item" data-field="status">
+        ${state.statusListe.map(s=>`<option value="${s}" ${s===d.status?'selected':''}>${statusLabel(s)}</option>`).join('')}
+      </select>
     </div>
     <div class="field">
       <label>${t('field_flightcase')}</label>
@@ -1506,7 +1550,7 @@ function pickFlightcaseSheet(s){
   // so it can't already contain anything -- nothing to exclude.
   const excluded = isDraft ? new Set() : new Set([currentInv, ...state.inventar.filter(x=>x.parent===currentInv).map(x=>x.inv)]);
   // Flightcases can only be items filed under category 006 (Cases & Transport).
-  const casesRoot = catRoots().find(r=>r.code==='006');
+  const casesRoot = casesRootCat();
   const rootChildren = casesRoot ? catChildren(casesRoot.id) : [];
   return `
     <button class="item-card" data-action="assign-flightcase" data-case="">
@@ -1892,6 +1936,41 @@ function returnSheet(v){
 }
 
 /* ---------- customers ---------- */
+
+function flightcasesSheet(){
+  const casesRoot = casesRootCat();
+  const ids = casesRoot ? descendantCatIds(casesRoot.id) : [];
+  const cases = state.inventar.filter(i=>ids.includes(i.cat)).sort((a,b)=>a.inv.localeCompare(b.inv));
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('flightcases_p')}</p>
+    ${cases.length? cases.map(c=>{
+      const children = state.inventar.filter(x=>x.parent===c.inv);
+      const contentsText = children.length ? children.map(x=>x.bez).join(', ') : t('contains_empty');
+      return `
+      <div class="case-card">
+        <button type="button" class="case-head" data-action="open-item" data-inv="${c.inv}">
+          <span class="inv-num mono">${c.inv}</span>
+          <span class="ic-title">${esc(c.bez)}</span>
+        </button>
+        <div class="field">
+          <input type="text" data-action="edit-item" data-field="nickname" data-inv="${c.inv}" value="${esc(c.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
+        </div>
+        <span class="case-contents">${esc(contentsText)}</span>
+      </div>`;
+    }).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_flightcases')}</p></div>`}
+  `;
+}
+
+function testTypesSheet(){
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('test_types_p')}</p>
+    ${state.testTypes.map(tt=>renderTestTypeEditor(tt)).join('')}
+    <div class="add-inline" style="margin-top:10px;">
+      <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
+      <button data-action="add-test-type">${t('add')}</button>
+    </div>
+  `;
+}
 
 function customersSheet(){
   const list = [...state.customers].sort((a,b)=>a.name.localeCompare(b.name));
@@ -2429,6 +2508,8 @@ function onClick(e){
       }
       break;
     }
+    case 'add-item-test-type':
+      doAddTestTypeToItem(t2.dataset.inv, t2.dataset.id); break;
     case 'toggle-draft-test-type': {
       const d = ui.newItemDraft; const id = t2.dataset.id;
       const idx = d.testTypes.indexOf(id);
@@ -2592,6 +2673,10 @@ function onClick(e){
     }
     case 'open-data-explorer':
       pushSheet({type:'data-explorer'}); break;
+    case 'open-flightcases':
+      pushSheet({type:'flightcases'}); break;
+    case 'open-test-types':
+      pushSheet({type:'test-types'}); break;
     case 'lock-now':
       api('POST', '/api/logout').finally(()=>location.reload());
       break;
@@ -2605,10 +2690,18 @@ function onChange(e){
   if(action==='edit-item'){
     const item = byInv(t2.dataset.inv);
     const field = t2.dataset.field;
-    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : t2.value);
+    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : field==='intervall' ? (parseInt(t2.value,10)||12) : t2.value);
     item[field] = value;
-    if(field==='status' || field==='menge') render();
-    api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {[field]: value}).catch(()=>showToast(t('toast_sync_failed')));
+    const patch = {[field]: value};
+    // Mirrors the naechste = letzte + intervall computation used at item
+    // creation, so editing either field later keeps the next-inspection
+    // date in sync instead of leaving it stale.
+    if((field==='letzte' || field==='intervall') && item.pruef && item.letzte){
+      item.naechste = addMonths(item.letzte, parseInt(item.intervall,10)||12);
+      patch.naechste = item.naechste;
+    }
+    if(['status','menge','pruef','letzte','intervall'].includes(field)) render();
+    api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, patch).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
   if(action==='upload-item-photo'){
@@ -2819,8 +2912,8 @@ async function doSaveNewItem(){
   const item = {
     inv:d.inv, cat:d.cat, tag:d.tag||null, bez:d.bez, hersteller:d.hersteller, modell:d.modell, serien:d.serien,
     standort:d.standort, parent:d.flightcase||null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
-    pruef:!!d.pruef, letzte:d.letzte||null, naechste, notiz:d.notiz||'',
-    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'', files:[],
+    pruef:!!d.pruef, letzte:d.letzte||null, naechste, intervall:d.pruef?(parseInt(d.intervall,10)||12):null, notiz:d.notiz||'',
+    menge:Math.max(1, parseInt(d.menge,10)||1), foto:'', files:[], nickname:isCaseCat(d.cat)?(d.nickname||''):'',
     checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };
   const fotoDataUrl = d.fotoDataUrl;
@@ -3007,6 +3100,25 @@ async function doDeleteItem(inv){
 async function doAddChecklistItem(inv, text){
   const item = byInv(inv);
   const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked})), {text, checked:false}];
+  try {
+    const updated = await api('PUT', `/api/inventar/${encodeURIComponent(inv)}/checklist`, {items});
+    item.checklist = updated.checklist;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+
+// Appends a test type's checklist lines to an item that's already been
+// created (skipping lines already present by text) -- the equivalent of
+// picking a test type during creation, just applied after the fact. Items
+// already checked off are left untouched since nothing here was re-inspected.
+async function doAddTestTypeToItem(inv, testTypeId){
+  const item = byInv(inv);
+  const tt = state.testTypes.find(x=>x.id===testTypeId);
+  if(!item || !tt) return;
+  const existingTexts = new Set(item.checklist.map(c=>c.text));
+  const newTexts = tt.items.map(it=>it.text).filter(text=>!existingTexts.has(text));
+  if(!newTexts.length){ showToast(t('toast_test_type_already_added')); return; }
+  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked})), ...newTexts.map(text=>({text, checked:false}))];
   try {
     const updated = await api('PUT', `/api/inventar/${encodeURIComponent(inv)}/checklist`, {items});
     item.checklist = updated.checklist;
