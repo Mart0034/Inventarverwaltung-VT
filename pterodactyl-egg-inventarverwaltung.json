@@ -23,7 +23,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\nset -e\napt-get update -y\napt-get install -y git ca-certificates curl\n\ncd /mnt/server\n\nBRANCH=\"${GIT_BRANCH:-claude/equipment-rental-app-ideas-9gdoj4}\"\nREPO=\"${GIT_REPO:-https://github.com/Mart0034/Inventarverwaltung-VT.git}\"\n\necho \"Cloning ${REPO} (branch: ${BRANCH}) ...\"\nrm -rf /tmp/fundus-src\ngit clone --branch \"${BRANCH}\" --single-branch \"${REPO}\" /tmp/fundus-src\nrm -rf /tmp/fundus-src/.git\n\n# Overwrite app files with the latest version. The repo never contains a\n# data/ directory, so this step never touches the persisted database.\ncp -r /tmp/fundus-src/. /mnt/server/\nrm -rf /tmp/fundus-src\n\nnpm install --omit=dev\n\nif [ ! -f /mnt/server/cloudflared ]; then\n  echo \"Downloading cloudflared (for optional Cloudflare Tunnel HTTPS) ...\"\n  curl -L --fail -o /mnt/server/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64\n  chmod +x /mnt/server/cloudflared\nfi\n\necho \"Installation abgeschlossen.\"\n",
+            "script": "#!/bin/bash\nset -e\napt-get update -y\napt-get install -y git ca-certificates\n\ncd /mnt/server\n\nBRANCH=\"${GIT_BRANCH:-claude/equipment-rental-app-ideas-9gdoj4}\"\nREPO=\"${GIT_REPO:-https://github.com/Mart0034/Inventarverwaltung-VT.git}\"\n\necho \"Cloning ${REPO} (branch: ${BRANCH}) ...\"\nrm -rf /tmp/fundus-src\ngit clone --branch \"${BRANCH}\" --single-branch \"${REPO}\" /tmp/fundus-src\nrm -rf /tmp/fundus-src/.git\n\n# Overwrite app files with the latest version. The repo never contains a\n# data/ directory, so this step never touches the persisted database.\ncp -r /tmp/fundus-src/. /mnt/server/\nrm -rf /tmp/fundus-src\n\nnpm install --omit=dev\n\necho \"Installation abgeschlossen.\"\n",
             "container": "ghcr.io/ptero-eggs/yolks:nodejs_22",
             "entrypoint": "bash"
         }
@@ -47,16 +47,6 @@
             "user_viewable": true,
             "user_editable": true,
             "rules": "required|string|max:191",
-            "field_type": "text"
-        },
-        {
-            "name": "Cloudflare Tunnel Token",
-            "description": "Optional. Token from a Cloudflare Tunnel connector (Zero Trust dashboard -> Networks -> Tunnels), used to expose this server over HTTPS via Cloudflare without opening any ports. Leave empty to skip.",
-            "env_variable": "CLOUDFLARE_TUNNEL_TOKEN",
-            "default_value": "",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "nullable|string",
             "field_type": "text"
         }
     ]
