@@ -16,6 +16,7 @@ const ICONS = {
   empty:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l8-4 8 4-8 4-8-4z"/><path d="M4 8v9l8 4 8-4V8" stroke-dasharray="2.4 3"/></svg>',
   chevRight:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,5 16,12 9,19"/></svg>',
   chevDown:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,9 12,16 19,9"/></svg>',
+  chevUp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="5,15 12,8 19,15"/></svg>',
 };
 
 /* ---------- i18n ---------- */
@@ -187,6 +188,20 @@ const STRINGS = {
     status_Defekt:'Defekt', 'status_In Reparatur':'In Reparatur', status_Ausgemustert:'Ausgemustert', status_Verloren:'Verloren',
     status_partial:'Teilweise verfügbar',
     pruef_ok:'Unauffällig', pruef_warn:'Bald fällig', pruef_soon:'Bald fällig', pruef_crit:'Überfällig',
+    field_gewicht:'Gewicht (kg)',
+    weight_total_hint:'Case: {own} kg · Inhalt: {contents} kg · Gesamt: {total} kg',
+    move_up:'Nach oben verschieben', move_down:'Nach unten verschieben',
+    nav_audit_log:'Änderungsprotokoll', sheet_audit_log:'Änderungsprotokoll',
+    audit_title:'Änderungsprotokoll', audit_p:'Verlauf aller Änderungen an Artikeln — wer hat wann was geändert.',
+    audit_open:'Änderungsprotokoll öffnen',
+    audit_empty:'Noch keine Änderungen protokolliert.',
+    audit_created_line:'Artikel angelegt: {name}', audit_deleted_line:'Artikel gelöscht (war: {name})',
+    audit_change_line:'{field}: {old} → {new}', audit_no_value:'–',
+    btn_item_history:'Verlauf anzeigen', sheet_audit_log_item:'Verlauf {inv}',
+    tag_items_title:'Artikel mit diesem Tag ({n})', tag_items_empty:'Noch keine Artikel mit diesem Tag.',
+    field_code:'Code',
+    hersteller_title:'Hersteller', hersteller_placeholder:'Neuer Hersteller …',
+    hersteller_p:'Vorschlagsliste für das Hersteller-Feld beim Anlegen eines Artikels. Freitext bleibt weiterhin möglich.',
   },
   en: {
     tab_start:'Home', tab_inventar:'Inventory', tab_pruefungen:'Checks', tab_vermietungen:'Rentals', tab_mehr:'More',
@@ -354,6 +369,20 @@ const STRINGS = {
     status_Defekt:'Broken', 'status_In Reparatur':'In repair', status_Ausgemustert:'Retired', status_Verloren:'Lost',
     status_partial:'Partially available',
     pruef_ok:'On track', pruef_warn:'Due soon', pruef_soon:'Due soon', pruef_crit:'Overdue',
+    field_gewicht:'Weight (kg)',
+    weight_total_hint:'Case: {own} kg · Contents: {contents} kg · Total: {total} kg',
+    move_up:'Move up', move_down:'Move down',
+    nav_audit_log:'Change log', sheet_audit_log:'Change log',
+    audit_title:'Change log', audit_p:'History of every change made to items — who changed what, and when.',
+    audit_open:'Open change log',
+    audit_empty:'No changes logged yet.',
+    audit_created_line:'Item created: {name}', audit_deleted_line:'Item deleted (was: {name})',
+    audit_change_line:'{field}: {old} → {new}', audit_no_value:'–',
+    btn_item_history:'Show history', sheet_audit_log_item:'History {inv}',
+    tag_items_title:'Items with this tag ({n})', tag_items_empty:'No items with this tag yet.',
+    field_code:'Code',
+    hersteller_title:'Manufacturers', hersteller_placeholder:'New manufacturer …',
+    hersteller_p:'Suggestion list for the Manufacturer field when creating an item. Free text is still possible.',
   }
 };
 
@@ -397,6 +426,14 @@ async function loadState(){
   render();
 }
 
+async function loadAuditLog(entityId){
+  try {
+    const qs = entityId ? `?entityId=${encodeURIComponent(entityId)}` : '';
+    ui.auditLog = await api('GET', `/api/audit-log${qs}`);
+  } catch(e){ ui.auditLog = []; }
+  render();
+}
+
 let lastSheetKey = null;
 let lastRenderedTab = null;
 
@@ -408,6 +445,7 @@ let ui = {
   expandedSettingsCats: new Set(),
   expandedTestTypes: new Set(),
   showArchived:false, rentalSort:'date', explorerSort:{},
+  auditLog:null,
   mehrTapCount:0, mehrTapLast:0,
   lang: localStorage.getItem('fundus-lang') || 'de',
   theme: localStorage.getItem('fundus-theme') || 'system',
@@ -421,7 +459,7 @@ function applyTheme(theme){
 /* ---------- category tree helpers ---------- */
 
 function catNode(id){ return state.categories.find(c=>c.id===id); }
-function catChildren(parentId){ return state.categories.filter(c=>c.parent===parentId); }
+function catChildren(parentId){ return state.categories.filter(c=>c.parent===parentId).sort((a,b)=>a.sortOrder-b.sortOrder); }
 function catRoots(){ return catChildren(null); }
 function catPath(id){ const path=[]; let n=catNode(id); while(n){ path.unshift(n); n = n.parent ? catNode(n.parent) : null; } return path; }
 function catPathNames(id){ return catPath(id).map(n=>n.name).join(' › '); }
@@ -443,7 +481,8 @@ function toggleCatExpand(id){
 }
 function byInv(inv){ return state.inventar.find(i=>i.inv===inv); }
 function distinctHersteller(){
-  return [...new Set(state.inventar.map(i=>i.hersteller).filter(h=>h && h.trim()))].sort((a,b)=>a.localeCompare(b));
+  const used = state.inventar.map(i=>i.hersteller).filter(h=>h && h.trim());
+  return [...new Set([...state.hersteller, ...used])].sort((a,b)=>a.localeCompare(b));
 }
 function fmtDate(iso){ if(!iso) return '–'; const d=new Date(iso+'T00:00:00'); return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}); }
 function fmtDateLong(d){ return d.toLocaleDateString(ui.lang==='en'?'en-GB':'de-DE',{weekday:'long',day:'2-digit',month:'long'}); }
@@ -702,6 +741,15 @@ function tagLabel(tagId){
 
 function childCountOf(inv){ return state.inventar.filter(x=>x.parent===inv).length; }
 
+function itemWeight(i){ return i.gewicht || 0; }
+function containedWeight(i){ return state.inventar.filter(x=>x.parent===i.inv).reduce((sum,c)=>sum+itemWeight(c),0); }
+function totalWeightWithContents(i){ return itemWeight(i) + containedWeight(i); }
+
+// Best-effort attribution for the audit log -- this app has no real user
+// accounts, so this is just whatever name was set in the secret settings
+// panel (or blank, logged as "unknown").
+function auditActor(){ return (state && state.userName) ? state.userName : ''; }
+
 // A case's own status only tells half the story -- it can say "Verfügbar"
 // while something packed inside it is actually out on a rental or broken.
 // Checks direct contents only (not nested cases-within-cases).
@@ -955,12 +1003,20 @@ function renderCatEditNode(node, depth){
   const hasKids = children.length>0;
   const expanded = !hasKids || ui.expandedSettingsCats.has(node.id);
   const tags = depth===1 ? state.tags.filter(tg=>tg.cat===node.id) : [];
+  const siblings = catChildren(node.parent);
+  const idx = siblings.findIndex(s=>s.id===node.id);
+  const isFirst = idx<=0;
+  const isLast = idx>=siblings.length-1;
   return `
     <div class="cat-edit-node" style="margin-left:${depth*16}px;">
       <div class="cat-edit-row">
         ${hasKids ? `<button class="cat-toggle" data-action="toggle-settings-cat-expand" data-id="${node.id}">${expanded?ICONS.chevDown:ICONS.chevRight}</button>` : `<span class="cat-toggle-spacer"></span>`}
         <input class="code mono" data-action="edit-cat-code" data-id="${node.id}" value="${esc(node.code)}" maxlength="4" />
         <input class="name" data-action="edit-cat-name" data-id="${node.id}" value="${esc(node.name)}" />
+        <div class="cat-move-btns">
+          <button class="cat-move-btn" data-action="move-cat" data-id="${node.id}" data-dir="up" ${isFirst?'disabled':''} aria-label="${t('move_up')}">${ICONS.chevUp}</button>
+          <button class="cat-move-btn" data-action="move-cat" data-id="${node.id}" data-dir="down" ${isLast?'disabled':''} aria-label="${t('move_down')}">${ICONS.chevDown}</button>
+        </div>
         <button class="icon-btn cat-delete-btn" data-action="delete-cat" data-id="${node.id}" aria-label="${t('delete')}">${ICONS.close}</button>
       </div>
       ${expanded ? `
@@ -979,7 +1035,10 @@ function renderTagEditor(node, tags){
       ${tags.length ? `
         <div class="chip-edit-row">
           ${tags.map(tg=>`
-            <span class="chip-edit mono">${esc(catPathCodes(node.id))}.${esc(tg.code)} — ${esc(tg.name)}<button data-action="delete-tag" data-id="${tg.id}">${ICONS.close}</button></span>
+            <span class="chip-edit mono">
+              <button type="button" class="chip-edit-label" data-action="open-tag-detail" data-id="${tg.id}">${esc(catPathCodes(node.id))}.${esc(tg.code)} — ${esc(tg.name)}</button>
+              <button data-action="delete-tag" data-id="${tg.id}">${ICONS.close}</button>
+            </span>
           `).join('')}
         </div>
       ` : ''}
@@ -1114,6 +1173,20 @@ function screenEinstellungen(){
     </div>
 
     <div class="settings-card">
+      <h3>${t('hersteller_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('hersteller_p')}</p>
+      <div class="chip-edit-row">
+        ${state.hersteller.map(h=>`
+          <span class="chip-edit">${esc(h)}<button data-action="remove-hersteller" data-name="${esc(h)}">${ICONS.close}</button></span>
+        `).join('')}
+      </div>
+      <div class="add-inline">
+        <input type="text" id="new-hersteller" placeholder="${t('hersteller_placeholder')}" />
+        <button data-action="add-hersteller">${t('add')}</button>
+      </div>
+    </div>
+
+    <div class="settings-card">
       <h3>${t('thresh_title')}</h3>
       <div class="thresh-row">
         <label>${t('thresh_yellow')}</label>
@@ -1182,6 +1255,12 @@ function screenEinstellungen(){
     </div>
 
     <div class="settings-card">
+      <h3>${t('audit_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('audit_p')}</p>
+      <button class="link-btn" data-action="open-audit-log">${t('audit_open')}</button>
+    </div>
+
+    <div class="settings-card">
       <h3>${t('explorer_title')}</h3>
       <p class="field-hint" style="margin-bottom:10px;">${t('explorer_p')}</p>
       <button class="link-btn" data-action="open-data-explorer">${t('explorer_open')}</button>
@@ -1223,6 +1302,8 @@ function sheetOverlay(){
   else if(s.type==='bulk-edit'){ title = t('sheet_bulk_edit'); body = bulkEditSheet(); }
   else if(s.type==='test-types'){ title = t('nav_test_types'); body = testTypesSheet(); }
   else if(s.type==='secret-settings'){ title = t('sheet_secret_settings'); body = secretSettingsSheet(); }
+  else if(s.type==='tag-detail'){ const tg = state.tags.find(x=>x.id===s.id); title = tg? catPathCodes(tg.cat)+'.'+tg.code+' — '+tg.name : ''; body = tagDetailSheet(s); }
+  else if(s.type==='audit-log'){ title = s.entityId ? t('sheet_audit_log_item',{inv:s.entityId}) : t('sheet_audit_log'); body = auditLogSheet(); }
 
   const canBack = ui.sheetStack.length>1;
   const key = s.type+':'+(s.id||s.inv||s.for||'');
@@ -1321,6 +1402,11 @@ function itemDetailSheet(i){
       <label>${t('field_menge')}</label>
       <input type="number" min="1" data-action="edit-item" data-field="menge" data-inv="${i.inv}" value="${i.menge}" />
     </div>
+    <div class="field">
+      <label>${t('field_gewicht')}</label>
+      <input type="number" min="0" step="1" data-action="edit-item" data-field="gewicht" data-inv="${i.inv}" value="${itemWeight(i)}" />
+      ${children.length ? `<span class="field-hint">${t('weight_total_hint',{own:itemWeight(i), contents:containedWeight(i), total:totalWeightWithContents(i)})}</span>` : ''}
+    </div>
 
     <div class="divider"></div>
     <div class="section-head"><h2>${t('contains_title',{n:children.length})}</h2></div>
@@ -1414,6 +1500,7 @@ function itemDetailSheet(i){
     </label>
 
     <div class="divider"></div>
+    <button class="link-btn" data-action="open-item-history" data-inv="${i.inv}" style="margin-bottom:14px;display:inline-block;">${t('btn_item_history')}</button>
     <button class="btn btn-secondary" data-action="delete-item" data-inv="${i.inv}" style="color:var(--status-crit);">${t('btn_delete_item')}</button>
   `;
 }
@@ -1434,7 +1521,7 @@ function newItemSheet(){
   const d = ui.newItemDraft || (ui.newItemDraft = {
     inv:'', cat: firstLeafDefault(), tag:null,
     bez:'', hersteller:'', modell:'', serien:'', standort: state.standorte[0], status:'Verfügbar',
-    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1,
+    miete:'', pruef:false, letzte:'', intervall:12, notiz:'', menge:1, gewicht:'',
     testTypes:[], checklistExtra:[], fotoDataUrl:null, flightcase:null, files:[], nickname:''
   });
   const availableTags = state.tags.filter(tg=>tg.cat===d.cat);
@@ -1508,6 +1595,10 @@ function newItemSheet(){
         </select>
       </div>
       <div class="field"><label>${t('field_menge')}</label><input type="number" min="1" data-action="draft-item" data-field="menge" value="${esc(d.menge)}" /></div>
+    </div>
+    <div class="field">
+      <label>${t('field_gewicht')}</label>
+      <input type="number" min="0" step="1" data-action="draft-item" data-field="gewicht" value="${esc(d.gewicht)}" placeholder="0" />
     </div>
     <div class="field">
       <label>${t('field_status')}</label>
@@ -2061,6 +2152,7 @@ function flightcasesSheet(){
           <input type="text" data-action="edit-item" data-field="nickname" data-inv="${c.inv}" value="${esc(c.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
         </div>
         <span class="case-contents">${esc(contentsText)}</span>
+        <span class="case-weight">${t('weight_total_hint',{own:itemWeight(c), contents:containedWeight(c), total:totalWeightWithContents(c)})}</span>
       </div>`;
     }).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_flightcases')}</p></div>`}
   `;
@@ -2073,6 +2165,80 @@ function testTypesSheet(){
     <div class="add-inline" style="margin-top:10px;">
       <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
       <button data-action="add-test-type">${t('add')}</button>
+    </div>
+  `;
+}
+
+function tagDetailSheet(s){
+  const tg = state.tags.find(x=>x.id===s.id);
+  if(!tg) return '';
+  const items = state.inventar.filter(i=>i.tag===tg.id).sort((a,b)=>a.inv.localeCompare(b.inv));
+  return `
+    <div class="field-row">
+      <div class="field"><label>${t('field_code')}</label><input type="text" class="mono" maxlength="3" data-action="edit-tag" data-field="code" data-id="${tg.id}" value="${esc(tg.code)}" /></div>
+      <div class="field"><label>${t('field_name')}</label><input type="text" data-action="edit-tag" data-field="name" data-id="${tg.id}" value="${esc(tg.name)}" /></div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-item span2"><span class="dl-label">${t('field_category')}</span><span class="dl-value">${catPathNames(tg.cat)}</span></div>
+    </div>
+    <div class="divider"></div>
+    <div class="section-head"><h2>${t('tag_items_title',{n:items.length})}</h2></div>
+    <div class="card-list">
+      ${items.length? items.map(i=>itemCard(i,false)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('tag_items_empty')}</p></div>`}
+    </div>
+  `;
+}
+
+function auditFieldLabel(field){
+  const map = {
+    bez:'field_bez', hersteller:'field_hersteller', modell:'field_modell', serien:'field_serien',
+    standort:'field_standort', parent:'field_flightcase', status:'field_status', miete:'field_miete',
+    pruef:'check_pruefpflicht', letzte:'field_letzte', naechste:'field_naechste', notiz:'field_notiz',
+    cat:'field_category', menge:'field_menge', tag:'field_tag', intervall:'field_intervall',
+    nickname:'field_nickname', gewicht:'field_gewicht',
+  };
+  return map[field] ? t(map[field]) : field;
+}
+function auditValueDisplay(field, value){
+  if(value==null || value==='') return t('audit_no_value');
+  if(field==='cat'){ const path = catPathNames(value); return path || value; }
+  if(field==='parent'){ const box = byInv(value); return box ? box.inv+' – '+box.bez : value; }
+  if(field==='tag'){ const tg = state.tags.find(x=>x.id===value); return tg ? catPathCodes(tg.cat)+'.'+tg.code+' — '+tg.name : value; }
+  if(field==='status') return statusLabel(value) || value;
+  if(field==='pruef') return value==='1' ? t('check_pruefpflicht') : t('audit_no_value');
+  if(field==='miete') return fmtEuro(parseFloat(value)||0);
+  return value;
+}
+function auditEntryLine(e){
+  if(e.field==='__created__') return esc(t('audit_created_line',{name:e.newValue||''}));
+  if(e.field==='__deleted__') return esc(t('audit_deleted_line',{name:e.oldValue||''}));
+  return esc(t('audit_change_line',{
+    field:auditFieldLabel(e.field),
+    old:auditValueDisplay(e.field,e.oldValue),
+    new:auditValueDisplay(e.field,e.newValue),
+  }));
+}
+function fmtDateTime(ts){
+  if(!ts) return '–';
+  const d = new Date(ts.replace(' ','T')+'Z');
+  return d.toLocaleString(ui.lang==='en'?'en-GB':'de-DE',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+function auditLogSheet(){
+  if(ui.auditLog===null) return `<p class="field-hint">${t('boot_loading')}</p>`;
+  const entries = ui.auditLog;
+  if(!entries.length) return `<div class="empty-state">${ICONS.empty}<p>${t('audit_empty')}</p></div>`;
+  return `
+    <div class="audit-list">
+      ${entries.map(e=>`
+        <div class="audit-row">
+          <div class="audit-row-top">
+            <span class="audit-ts mono">${fmtDateTime(e.ts)}</span>
+            <span class="inv-num mono">${esc(e.entityId)}</span>
+          </div>
+          <div class="audit-row-body">${auditEntryLine(e)}</div>
+          ${e.actor ? `<span class="audit-actor">${esc(e.actor)}</span>` : ''}
+        </div>
+      `).join('')}
     </div>
   `;
 }
@@ -2419,7 +2585,7 @@ function dataExplorerSheet(){
 
   return `
     <p class="field-hint" style="margin-bottom:16px;">${t('explorer_intro')}</p>
-    ${rawTable('inventar', t('tab_inventar'), state.inventar, ['inv','cat','tag','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','foto'])}
+    ${rawTable('inventar', t('tab_inventar'), state.inventar, ['inv','cat','tag','bez','hersteller','modell','serien','standort','parent','status','miete','pruef','letzte','naechste','notiz','menge','gewicht','foto'])}
     ${rawTable('vermietungen', t('tab_vermietungen'), state.vermietungen.map(v=>({...v, items:itemsAsTextClient(v.items), pack:JSON.stringify(v.pack)})), ['id','kunde','customer_id','von','bis','status','archiviert','items','pack'])}
     ${rawTable('customers', t('nav_customers'), state.customers, ['id','name','firma','email','telefon','adresse','notiz','created_at'])}
     ${rawTable('bundles', t('nav_bundles'), state.bundles.map(b=>({...b, items:itemsAsTextClient(b.items)})), ['id','name','notiz','suggestedPrice','items'])}
@@ -2448,6 +2614,8 @@ function attachEvents(){
   }
   const ns = document.getElementById('new-standort');
   if(ns){ ns.addEventListener('keydown', e=>{ if(e.key==='Enter'){ doAddStandort(); } }); }
+  const nh = document.getElementById('new-hersteller');
+  if(nh){ nh.addEventListener('keydown', e=>{ if(e.key==='Enter'){ doAddHersteller(); } }); }
 
   app.addEventListener('click', onClick);
   app.addEventListener('change', onChange);
@@ -2685,6 +2853,8 @@ function onClick(e){
       doAddSubcat(t2.dataset.id); break;
     case 'delete-cat':
       doDeleteCat(t2.dataset.id); break;
+    case 'move-cat':
+      doMoveCat(t2.dataset.id, t2.dataset.dir); break;
     case 'add-tag': {
       const wrap = t2.closest('.tag-add-inline');
       const [codeInput, nameInput] = wrap.querySelectorAll('input');
@@ -2736,6 +2906,15 @@ function onClick(e){
       state.standorte = state.standorte.filter(s=>s!==name);
       render();
       api('DELETE', `/api/standorte/${encodeURIComponent(name)}`).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'add-hersteller':
+      doAddHersteller(); break;
+    case 'remove-hersteller': {
+      const name = t2.dataset.name;
+      state.hersteller = state.hersteller.filter(h=>h!==name);
+      render();
+      api('DELETE', `/api/hersteller/${encodeURIComponent(name)}`).catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
     case 'set-lang':
@@ -2823,6 +3002,12 @@ function onClick(e){
       pushSheet({type:'flightcases'}); break;
     case 'open-test-types':
       pushSheet({type:'test-types'}); break;
+    case 'open-tag-detail':
+      pushSheet({type:'tag-detail', id:t2.dataset.id}); break;
+    case 'open-audit-log':
+      ui.auditLog = null; pushSheet({type:'audit-log'}); loadAuditLog(); break;
+    case 'open-item-history':
+      ui.auditLog = null; pushSheet({type:'audit-log', entityId:t2.dataset.inv}); loadAuditLog(t2.dataset.inv); break;
     case 'open-bulk-edit':
       ui.bulkEditDraft = null; pushSheet({type:'bulk-edit'}); break;
     case 'apply-bulk-edit': {
@@ -2860,9 +3045,9 @@ function onChange(e){
   if(action==='edit-item'){
     const item = byInv(t2.dataset.inv);
     const field = t2.dataset.field;
-    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : field==='intervall' ? (parseInt(t2.value,10)||12) : t2.value);
+    const value = t2.type==='checkbox' ? t2.checked : (field==='menge' ? Math.max(1, parseInt(t2.value,10)||1) : field==='tag' ? (t2.value||null) : field==='intervall' ? (parseInt(t2.value,10)||12) : field==='gewicht' ? Math.max(0, parseInt(t2.value,10)||0) : t2.value);
     item[field] = value;
-    const patch = {[field]: value};
+    const patch = {[field]: value, actor: auditActor()};
     // Mirrors the naechste = letzte + intervall computation used at item
     // creation, so editing either field later keeps the next-inspection
     // date in sync instead of leaving it stale.
@@ -2870,7 +3055,7 @@ function onChange(e){
       item.naechste = addMonths(item.letzte, parseInt(item.intervall,10)||12);
       patch.naechste = item.naechste;
     }
-    if(['status','menge','pruef','letzte','intervall'].includes(field)) render();
+    if(['status','menge','pruef','letzte','intervall','gewicht'].includes(field)) render();
     api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, patch).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
@@ -3045,6 +3230,13 @@ function onChange(e){
     api('PATCH', `/api/test-types/${tt.id}`, {name: tt.name}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
+  if(action==='edit-tag'){
+    const tg = state.tags.find(x=>x.id===t2.dataset.id);
+    const field = t2.dataset.field;
+    tg[field] = t2.value;
+    api('PATCH', `/api/tags/${tg.id}`, {[field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
   if(action==='edit-cat-name'){
     const node = catNode(t2.dataset.id);
     node.name = t2.value;
@@ -3095,6 +3287,7 @@ async function doSaveNewItem(){
     standort:d.standort, parent:d.flightcase||null, status:d.status||'Verfügbar', miete:parseFloat(d.miete)||0,
     pruef:!!d.pruef, letzte:d.letzte||null, naechste, intervall:d.pruef?(parseInt(d.intervall,10)||12):null, notiz:d.notiz||'',
     menge:Math.max(1, parseInt(d.menge,10)||1), foto:'', files:[], nickname:isCaseCat(d.cat)?(d.nickname||''):'',
+    gewicht:Math.max(0, parseInt(d.gewicht,10)||0),
     checklist: checklistTexts.map((text,idx)=>({id:`tmp-${idx}`, text, checked:false}))
   };
   const fotoDataUrl = d.fotoDataUrl;
@@ -3103,7 +3296,7 @@ async function doSaveNewItem(){
   closeSheets();
   showToast(t('toast_item_created',{inv:item.inv}));
   try {
-    await api('POST', '/api/inventar', {...item, checklist: checklistTexts});
+    await api('POST', '/api/inventar', {...item, checklist: checklistTexts, actor: auditActor()});
     if(fotoDataUrl){
       const updated = await api('POST', `/api/inventar/${encodeURIComponent(item.inv)}/photo`, {dataUrl: fotoDataUrl});
       const stateItem = byInv(item.inv);
@@ -3275,7 +3468,7 @@ async function doDeleteItem(inv){
   state.inventar = state.inventar.filter(i=>i.inv!==inv);
   closeSheets();
   showToast(t('toast_item_deleted',{inv}));
-  try { await api('DELETE', `/api/inventar/${encodeURIComponent(inv)}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
+  try { await api('DELETE', `/api/inventar/${encodeURIComponent(inv)}`, {actor: auditActor()}); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
 }
 
 async function doAddChecklistItem(inv, text){
@@ -3307,6 +3500,14 @@ async function doAddTestTypeToItem(inv, testTypeId){
   } catch(e){ showToast(t('toast_sync_failed')); }
 }
 
+async function doMoveCat(id, direction){
+  try {
+    const { moved, swapped } = await api('POST', `/api/categories/${id}/move`, {direction});
+    const a = catNode(moved.id); if(a) a.sortOrder = moved.sortOrder;
+    const b = catNode(swapped.id); if(b) b.sortOrder = swapped.sortOrder;
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
 async function doDeleteCat(id){
   if(!confirm(t('confirm_delete_cat'))) return;
   try {
@@ -3380,6 +3581,17 @@ async function doAddStandort(){
   try {
     await api('POST', '/api/standorte', {name});
     state.standorte.push(name);
+    render();
+  } catch(e){ showToast(t('toast_sync_failed')); }
+}
+
+async function doAddHersteller(){
+  const inp = document.getElementById('new-hersteller');
+  if(!inp || !inp.value.trim()) return;
+  const name = inp.value.trim();
+  try {
+    await api('POST', '/api/hersteller', {name});
+    state.hersteller.push(name);
     render();
   } catch(e){ showToast(t('toast_sync_failed')); }
 }

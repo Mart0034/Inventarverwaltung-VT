@@ -14,10 +14,19 @@ db.exec(`
     id TEXT PRIMARY KEY,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
-    parent TEXT REFERENCES categories(id)
+    parent TEXT REFERENCES categories(id),
+    sort_order INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS standorte (
+    name TEXT PRIMARY KEY,
+    sort_order INTEGER NOT NULL
+  );
+
+  -- Curated manufacturer list, managed from Settings just like standorte --
+  -- the item form's Hersteller field stays free text (so a one-off name
+  -- doesn't need pre-registering first) but suggests from this list.
+  CREATE TABLE IF NOT EXISTS hersteller (
     name TEXT PRIMARY KEY,
     sort_order INTEGER NOT NULL
   );
@@ -45,7 +54,8 @@ db.exec(`
     menge INTEGER NOT NULL DEFAULT 1,
     foto TEXT DEFAULT '',
     intervall INTEGER,
-    nickname TEXT DEFAULT ''
+    nickname TEXT DEFAULT '',
+    gewicht INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS customers (
@@ -135,20 +145,55 @@ db.exec(`
     size INTEGER NOT NULL DEFAULT 0,
     uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Track-keeping of who dialed in what: one row per changed field, so an
+  -- item's whole history can be reconstructed later. actor is just whatever
+  -- the secret-settings username was set to at the time (this app has no
+  -- real user accounts) -- best-effort attribution, not a security control.
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    ts TEXT NOT NULL DEFAULT (datetime('now')),
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    field TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    actor TEXT DEFAULT ''
+  );
 `);
 
 // --- lightweight migrations for columns added after initial release ---
 function ensureColumn(table, column, ddl) {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
-  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  if (!cols.includes(column)) { db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`); return true; }
+  return false;
 }
 ensureColumn('inventar', 'menge', "menge INTEGER NOT NULL DEFAULT 1");
 ensureColumn('inventar', 'foto', "foto TEXT DEFAULT ''");
 ensureColumn('inventar', 'tag', 'tag TEXT REFERENCES tags(id)');
 ensureColumn('inventar', 'intervall', 'intervall INTEGER');
 ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
+ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
+
+// Existing installs won't have sort_order on categories -- backfill it once
+// from the current row order (rowid), grouped by parent, so a fresh column
+// full of zeroes doesn't scramble an install's already-familiar category
+// order the moment "move up/down" ships.
+if (ensureColumn('categories', 'sort_order', 'sort_order INTEGER NOT NULL DEFAULT 0')) {
+  const groups = new Map();
+  db.prepare('SELECT id, parent FROM categories ORDER BY rowid').all().forEach((r) => {
+    const key = r.parent || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r.id);
+  });
+  const setOrder = db.prepare('UPDATE categories SET sort_order = ? WHERE id = ?');
+  const tx = db.transaction(() => {
+    for (const ids of groups.values()) ids.forEach((id, idx) => setOrder.run(idx, id));
+  });
+  tx();
+}
 
 // Same idea as ensureColumn, but for a settings row -- installs that
 // existed before the PIN gate was added won't have one yet.
@@ -175,7 +220,7 @@ function seedIfEmpty() {
   const count = db.prepare('SELECT COUNT(*) AS n FROM categories').get().n;
   if (count > 0) return;
 
-  const insertCat = db.prepare('INSERT INTO categories (id, code, name, parent) VALUES (@id, @code, @name, @parent)');
+  const insertCat = db.prepare('INSERT INTO categories (id, code, name, parent, sort_order) VALUES (@id, @code, @name, @parent, @sort_order)');
   const categories = [
     { id: 'c-buehne', code: '001', name: 'Bühne & Rigging', parent: null },
     { id: 'c-buehne-traversen', code: '01', name: 'Traversen & Rigging', parent: 'c-buehne' },
@@ -203,6 +248,12 @@ function seedIfEmpty() {
     { id: 'c-sonstiges', code: '008', name: 'Sonstiges', parent: null },
     { id: 'c-sonstiges-werkzeug', code: '01', name: 'Werkzeug', parent: 'c-sonstiges' },
   ];
+  const catSortCounters = {};
+  categories.forEach((c) => {
+    const key = c.parent || '';
+    c.sort_order = catSortCounters[key] || 0;
+    catSortCounters[key] = c.sort_order + 1;
+  });
   const insertManyCats = db.transaction((rows) => { for (const r of rows) insertCat.run(r); });
   insertManyCats(categories);
 
@@ -220,6 +271,10 @@ function seedIfEmpty() {
   const insertStandort = db.prepare('INSERT INTO standorte (name, sort_order) VALUES (?, ?)');
   const insertManyStandorte = db.transaction((rows) => { rows.forEach((name, i) => insertStandort.run(name, i)); });
   insertManyStandorte(['Lager 1', 'Lager 2', 'Werkstatt', 'Fahrzeug 1', 'Veranstaltung']);
+
+  const insertHersteller = db.prepare('INSERT INTO hersteller (name, sort_order) VALUES (?, ?)');
+  const insertManyHersteller = db.transaction((rows) => { rows.forEach((name, i) => insertHersteller.run(name, i)); });
+  insertManyHersteller(['Behringer', 'ChainMaster', 'Chauvet', 'Clay Paky', 'Cordial', 'HK Audio', 'Kübler', 'Prolyte', 'Sommer Cable', 'Thon', 'Wera']);
 
   const insertSetting = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
   insertSetting.run('gelb', '90');
@@ -406,6 +461,19 @@ function seedIfEmpty() {
 }
 
 seedIfEmpty();
+
+// Existing installs predate the hersteller table -- backfill it once from
+// whatever manufacturer names are already in use, so nothing already typed
+// into items disappears from the suggestion list.
+(function seedHerstellerFromExistingItems() {
+  const count = db.prepare('SELECT COUNT(*) AS n FROM hersteller').get().n;
+  if (count > 0) return;
+  const names = db.prepare("SELECT DISTINCT hersteller FROM inventar WHERE hersteller != '' ORDER BY hersteller").all().map((r) => r.hersteller);
+  if (!names.length) return;
+  const insert = db.prepare('INSERT INTO hersteller (name, sort_order) VALUES (?, ?)');
+  const tx = db.transaction(() => { names.forEach((name, i) => insert.run(name, i)); });
+  tx();
+})();
 
 module.exports = db;
 module.exports.DATA_DIR = DATA_DIR;

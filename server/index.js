@@ -209,11 +209,24 @@ app.post('/api/logout', (req, res) => {
 });
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag', 'intervall', 'nickname'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'menge', 'tag', 'intervall', 'nickname', 'gewicht'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
+// Track-keeping for inventar field changes -- see the audit_log table
+// comment in db.js. A no-op "change" (value unchanged) is skipped so
+// re-saving a form without touching a field doesn't clutter the log.
+function logAudit(entityType, entityId, field, oldValue, newValue, actor) {
+  const oldStr = oldValue === undefined || oldValue === null ? null : String(oldValue);
+  const newStr = newValue === undefined || newValue === null ? null : String(newValue);
+  if (oldStr === newStr) return;
+  db.prepare(`
+    INSERT INTO audit_log (id, entity_type, entity_id, field, old_value, new_value, actor)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(crypto.randomUUID(), entityType, entityId, field, oldStr, newStr, String(actor || '').slice(0, 60));
+}
+
 function catRow(row) {
-  return { id: row.id, code: row.code, name: row.name, parent: row.parent };
+  return { id: row.id, code: row.code, name: row.name, parent: row.parent, sortOrder: row.sort_order };
 }
 function checklistForInv(inv) {
   return db.prepare('SELECT id, text, checked FROM inventar_checklist WHERE inv = ? ORDER BY sort_order').all(inv)
@@ -239,8 +252,9 @@ function testTypeRow(row) {
 }
 
 function getFullState() {
-  const categories = db.prepare('SELECT * FROM categories').all().map(catRow);
+  const categories = db.prepare('SELECT * FROM categories ORDER BY sort_order').all().map(catRow);
   const standorte = db.prepare('SELECT name FROM standorte ORDER BY sort_order').all().map(r => r.name);
+  const hersteller = db.prepare('SELECT name FROM hersteller ORDER BY sort_order').all().map(r => r.name);
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
@@ -256,7 +270,7 @@ function getFullState() {
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
   const tags = db.prepare('SELECT * FROM tags').all();
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
-  return { categories, standorte, statusListe: STATUS_LISTE, schwellen, pin, userName, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN };
 }
 
 app.get('/api/state', (req, res) => {
@@ -279,6 +293,19 @@ app.get('/api/backup', (req, res) => {
   res.download(path.join(db.DATA_DIR, 'fundus.db'), `fundus-backup-${stamp}.db`);
 });
 
+/* ---- audit log ---- */
+
+app.get('/api/audit-log', (req, res) => {
+  const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit, 10) || 200));
+  const rows = req.query.entityId
+    ? db.prepare('SELECT * FROM audit_log WHERE entity_id = ? ORDER BY ts DESC, rowid DESC LIMIT ?').all(req.query.entityId, limit)
+    : db.prepare('SELECT * FROM audit_log ORDER BY ts DESC, rowid DESC LIMIT ?').all(limit);
+  res.json(rows.map(r => ({
+    id: r.id, ts: r.ts, entityType: r.entity_type, entityId: r.entity_id,
+    field: r.field, oldValue: r.old_value, newValue: r.new_value, actor: r.actor,
+  })));
+});
+
 /* ---- categories ---- */
 
 app.post('/api/categories', (req, res) => {
@@ -292,13 +319,38 @@ app.post('/api/categories', (req, res) => {
     // parent that itself has a parent would make this a third level.
     if (parentRow.parent) return res.status(400).json({ error: 'categories only support two levels' });
   }
-  const siblings = db.prepare('SELECT code FROM categories WHERE parent IS ?').all(parentId);
+  const siblings = db.prepare('SELECT code, sort_order FROM categories WHERE parent IS ?').all(parentId);
   const nums = siblings.map(s => parseInt(s.code, 10)).filter(n => !isNaN(n));
   const next = (nums.length ? Math.max(...nums) : 0) + 1;
   const code = String(next).padStart(parentId ? 2 : 3, '0');
+  const nextSortOrder = (siblings.length ? Math.max(...siblings.map(s => s.sort_order)) : -1) + 1;
   const id = 'cat-' + crypto.randomUUID().slice(0, 8);
-  db.prepare('INSERT INTO categories (id, code, name, parent) VALUES (?, ?, ?, ?)').run(id, code, name, parentId);
-  res.status(201).json(catRow({ id, code, name, parent: parentId }));
+  db.prepare('INSERT INTO categories (id, code, name, parent, sort_order) VALUES (?, ?, ?, ?, ?)').run(id, code, name, parentId, nextSortOrder);
+  res.status(201).json(catRow({ id, code, name, parent: parentId, sort_order: nextSortOrder }));
+});
+
+// Swaps sort_order with the previous/next sibling (same parent) so the
+// category tree in Settings can be reordered freely, independent of the
+// auto-assigned code numbers.
+app.post('/api/categories/:id/move', (req, res) => {
+  const row = db.prepare('SELECT * FROM categories WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const direction = req.body.direction;
+  if (direction !== 'up' && direction !== 'down') return res.status(400).json({ error: 'direction must be "up" or "down"' });
+  const siblings = db.prepare('SELECT id, sort_order FROM categories WHERE parent IS ? ORDER BY sort_order').all(row.parent);
+  const idx = siblings.findIndex(s => s.id === row.id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return res.status(400).json({ error: 'already at the edge' });
+  const other = siblings[swapIdx];
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE categories SET sort_order = ? WHERE id = ?').run(other.sort_order, row.id);
+    db.prepare('UPDATE categories SET sort_order = ? WHERE id = ?').run(row.sort_order, other.id);
+  });
+  tx();
+  res.json({
+    moved: catRow(db.prepare('SELECT * FROM categories WHERE id = ?').get(row.id)),
+    swapped: catRow(db.prepare('SELECT * FROM categories WHERE id = ?').get(other.id)),
+  });
 });
 
 app.patch('/api/categories/:id', (req, res) => {
@@ -343,6 +395,25 @@ app.delete('/api/standorte/:name', (req, res) => {
   res.status(204).end();
 });
 
+/* ---- hersteller (manufacturer suggestions) ---- */
+
+app.post('/api/hersteller', (req, res) => {
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM hersteller').get().m;
+  try {
+    db.prepare('INSERT INTO hersteller (name, sort_order) VALUES (?, ?)').run(name.trim(), maxOrder + 1);
+  } catch (e) {
+    return res.status(409).json({ error: 'already exists' });
+  }
+  res.status(201).json({ name: name.trim() });
+});
+
+app.delete('/api/hersteller/:name', (req, res) => {
+  db.prepare('DELETE FROM hersteller WHERE name = ?').run(req.params.name);
+  res.status(204).end();
+});
+
 /* ---- settings ---- */
 
 app.patch('/api/settings', (req, res) => {
@@ -375,16 +446,18 @@ app.post('/api/inventar', (req, res) => {
     return res.status(409).json({ error: 'duplicate inventory number' });
   }
   db.prepare(`
-    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, intervall, nickname)
-    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @intervall, @nickname)
+    INSERT INTO inventar (inv, cat, tag, bez, hersteller, modell, serien, standort, parent, status, miete, pruef, letzte, naechste, notiz, menge, intervall, nickname, gewicht)
+    VALUES (@inv, @cat, @tag, @bez, @hersteller, @modell, @serien, @standort, @parent, @status, @miete, @pruef, @letzte, @naechste, @notiz, @menge, @intervall, @nickname, @gewicht)
   `).run({
     inv: b.inv, cat: b.cat, tag: b.tag || null, bez: b.bez, hersteller: b.hersteller || '', modell: b.modell || '',
     serien: b.serien || '', standort: b.standort || '', parent: b.parent || null,
     status: b.status || 'Verfügbar', miete: b.miete || 0, pruef: b.pruef ? 1 : 0,
     letzte: b.letzte || null, naechste: b.naechste || null, notiz: b.notiz || '',
     menge: Math.max(1, parseInt(b.menge, 10) || 1),
-    intervall: b.intervall != null ? parseInt(b.intervall, 10) || null : null, nickname: b.nickname || ''
+    intervall: b.intervall != null ? parseInt(b.intervall, 10) || null : null, nickname: b.nickname || '',
+    gewicht: Math.max(0, parseInt(b.gewicht, 10) || 0),
   });
+  logAudit('inventar', b.inv, '__created__', null, b.bez, b.actor);
   if (Array.isArray(b.checklist) && b.checklist.length) {
     const insertItem = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order) VALUES (?, ?, ?, 0, ?)');
     b.checklist.forEach((text, idx) => insertItem.run(`${b.inv}-c${idx}-${Date.now()}`, b.inv, text, idx));
@@ -394,7 +467,9 @@ app.post('/api/inventar', (req, res) => {
 
 app.delete('/api/inventar/:inv', (req, res) => {
   const inv = req.params.inv;
-  if (!db.prepare('SELECT 1 FROM inventar WHERE inv = ?').get(inv)) return res.status(404).json({ error: 'not found' });
+  const row = db.prepare('SELECT * FROM inventar WHERE inv = ?').get(inv);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  logAudit('inventar', inv, '__deleted__', row.bez, null, (req.body || {}).actor);
   const tx = db.transaction(() => {
     // Sets are just convenience groupings, not critical records -- drop the
     // item from any it belongs to rather than blocking deletion.
@@ -414,6 +489,7 @@ app.patch('/api/inventar/:inv', (req, res) => {
   }
   const keys = Object.keys(updates);
   if (keys.length === 0) return res.json(itemRow(row));
+  keys.forEach(f => logAudit('inventar', req.params.inv, f, row[f], updates[f], req.body.actor));
   const setClause = keys.map(k => `${k} = @${k}`).join(', ');
   db.prepare(`UPDATE inventar SET ${setClause} WHERE inv = @inv`).run({ ...updates, inv: req.params.inv });
   res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
@@ -783,7 +859,7 @@ function itemsAsText(items) {
 
 const EXPORT_TABLES = {
   inventar: {
-    columns: ['inv', 'cat', 'bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'menge', 'foto'],
+    columns: ['inv', 'cat', 'bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'menge', 'foto', 'gewicht'],
     rows: () => db.prepare('SELECT * FROM inventar').all(),
   },
   vermietungen: {
@@ -802,6 +878,10 @@ const EXPORT_TABLES = {
   standorte: {
     columns: ['name', 'sort_order'],
     rows: () => db.prepare('SELECT * FROM standorte').all(),
+  },
+  hersteller: {
+    columns: ['name', 'sort_order'],
+    rows: () => db.prepare('SELECT * FROM hersteller').all(),
   },
   bundles: {
     columns: ['id', 'name', 'notiz', 'suggested_price', 'artikel'],
