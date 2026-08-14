@@ -437,12 +437,21 @@ function render(){
   const tabContinues = ui.tab === lastRenderedTab;
   const prevScreen = app.querySelector('.screen');
   const screenScroll = (tabContinues && prevScreen) ? prevScreen.scrollTop : 0;
+  // .cat-tree (the category browser in Inventar, and the item picker inside
+  // the new-rental sheet) is its own independently-scrollable region, capped
+  // shorter than its content -- it needs the same treatment as .screen,
+  // scoped separately since a screen-level and a sheet-level tree can exist
+  // in the DOM at the same time.
+  const prevScreenCatTree = app.querySelector('.screen .cat-tree');
+  const screenCatTreeScroll = (tabContinues && prevScreenCatTree) ? prevScreenCatTree.scrollTop : 0;
 
   const topSheetObj = ui.sheetStack[ui.sheetStack.length-1];
   const upcomingSheetKey = topSheetObj ? (topSheetObj.type+':'+(topSheetObj.id||topSheetObj.inv||topSheetObj.for||'')) : null;
   const sheetContinues = !!upcomingSheetKey && upcomingSheetKey===lastSheetKey;
   const prevSheetBody = app.querySelector('.sheet-body');
   const sheetScroll = (sheetContinues && prevSheetBody) ? prevSheetBody.scrollTop : 0;
+  const prevSheetCatTree = app.querySelector('.sheet-body .cat-tree');
+  const sheetCatTreeScroll = (sheetContinues && prevSheetCatTree) ? prevSheetCatTree.scrollTop : 0;
 
   app.innerHTML = `
     <div class="app-shell">
@@ -460,8 +469,12 @@ function render(){
 
   const newScreen = app.querySelector('.screen');
   if(newScreen) newScreen.scrollTop = screenScroll;
+  const newScreenCatTree = app.querySelector('.screen .cat-tree');
+  if(newScreenCatTree) newScreenCatTree.scrollTop = screenCatTreeScroll;
   const newSheetBody = app.querySelector('.sheet-body');
   if(newSheetBody) newSheetBody.scrollTop = sheetScroll;
+  const newSheetCatTree = app.querySelector('.sheet-body .cat-tree');
+  if(newSheetCatTree) newSheetCatTree.scrollTop = sheetCatTreeScroll;
   lastRenderedTab = ui.tab;
 
   attachEvents();
