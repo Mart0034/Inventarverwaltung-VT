@@ -96,6 +96,9 @@ const STRINGS = {
     field_add_bundle:'Set hinzufügen', opt_choose_bundle:'— Set wählen —',
     bundle_price_hint:'Preisvorschlag für „{name}“: {price}/Tag — nur ein Hinweis, keine feste Vorgabe.',
     toast_bundle_created:'Set „{name}“ angelegt', toast_bundle_deleted:'Set gelöscht',
+    stock_label:'{n}× im Bestand',
+    sheet_bundle_add_item:'Artikel hinzufügen', btn_add_bundle_item:'+ Artikel hinzufügen',
+    bundle_add_item_hint:'Artikel zum Set hinzufügen.', already_in_set:'Bereits im Set',
     btn_select_items:'Auswählen', btn_cancel_select:'Abbrechen',
     btn_add_to_rental:'Zur Vermietung', btn_save_as_set:'Als Set speichern',
     sheet_stats:'Statistik', stat_total_rentals:'Vermietungen', stat_total_revenue:'Umsatz gesamt',
@@ -216,6 +219,9 @@ const STRINGS = {
     field_add_bundle:'Add a set', opt_choose_bundle:'— Choose a set —',
     bundle_price_hint:'Suggested price for "{name}": {price}/day — just a hint, not a fixed rule.',
     toast_bundle_created:'Set "{name}" created', toast_bundle_deleted:'Set deleted',
+    stock_label:'{n}× in stock',
+    sheet_bundle_add_item:'Add item', btn_add_bundle_item:'+ Add item',
+    bundle_add_item_hint:'Add an item to the set.', already_in_set:'Already in set',
     btn_select_items:'Select', btn_cancel_select:'Cancel',
     btn_add_to_rental:'To rental', btn_save_as_set:'Save as set',
     sheet_stats:'Stats', stat_total_rentals:'Rentals', stat_total_revenue:'Total revenue',
@@ -309,7 +315,7 @@ let lastRenderedTab = null;
 let ui = {
   tab:'start', sheetStack:[], search:'', fStatus:null, toast:null,
   newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
-  selectMode:false, selectedInv: new Set(),
+  selectMode:false, selectedInv: new Set(), selectedQty: {},
   expandedCats: new Set(),
   expandedSettingsCats: new Set(),
   lang: localStorage.getItem('fundus-lang') || 'de',
@@ -592,17 +598,33 @@ function itemCard(i, showPruef, selectable){
       ? `<span class="pill ${avail>0?'pill-ok':'pill-rented'}">${t('available_of',{n:avail,m:i.menge})}</span>`
       : `<span class="pill ${statusPillClass(i.status)}">${statusLabel(i.status)}</span>`;
   const thumb = i.foto ? `<img class="ic-thumb" src="/photos/${encodeURIComponent(i.foto)}" alt="" loading="lazy" />` : '';
-  const selected = selectable && ui.selectedInv.has(i.inv);
+
+  if(!selectable){
+    return `
+      <button class="item-card ${cls}" data-action="open-item" data-inv="${i.inv}">
+        ${thumb}
+        <div class="ic-body">
+          <span class="inv-num mono">${i.inv}</span>
+          <span class="ic-title">${esc(i.bez)}</span>
+          <span class="ic-meta">${metaLine}</span>
+        </div>
+        ${pill}
+      </button>`;
+  }
+
+  const selected = ui.selectedInv.has(i.inv);
+  const qty = ui.selectedQty[i.inv] || 1;
   return `
-    <button class="item-card ${cls}" data-action="${selectable?'toggle-select-item':'open-item'}" data-inv="${i.inv}">
-      ${selectable? `<div class="pack-check ${selected?'checked':''}">${selected?ICONS.check:''}</div>` : thumb}
-      <div class="ic-body">
+    <div class="item-card ${cls} select-row">
+      <button class="pack-check ${selected?'checked':''}" data-action="toggle-select-item" data-inv="${i.inv}" aria-label="${esc(i.bez)}">${selected?ICONS.check:''}</button>
+      <button class="ic-body" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;" data-action="toggle-select-item" data-inv="${i.inv}">
         <span class="inv-num mono">${i.inv}</span>
         <span class="ic-title">${esc(i.bez)}</span>
         <span class="ic-meta">${metaLine}</span>
-      </div>
-      ${selectable? '' : pill}
-    </button>`;
+      </button>
+      ${bulk? `<span class="stock-note">${t('stock_label',{n:i.menge})}</span>` : ''}
+      ${bulk && selected? `<input class="qty-input" type="number" min="1" max="${i.menge}" value="${qty}" data-action="set-select-item-qty" data-inv="${i.inv}" />` : ''}
+    </div>`;
 }
 
 function countItemsUnderStatus(id, statusFilter){
@@ -948,6 +970,7 @@ function sheetOverlay(){
   else if(s.type==='bundles'){ title = t('sheet_bundles'); body = bundlesSheet(); }
   else if(s.type==='bundle'){ const b = state.bundles.find(x=>x.id===s.id); title = b.name; body = bundleDetailSheet(b); }
   else if(s.type==='new-bundle'){ title = t('sheet_new_bundle'); body = newBundleSheet(); }
+  else if(s.type==='bundle-add-item'){ title = t('sheet_bundle_add_item'); body = bundleAddItemSheet(s); }
   else if(s.type==='timeline'){ title = t('sheet_timeline'); body = timelineSheet(); }
   else if(s.type==='stats'){ title = t('sheet_stats'); body = statsSheet(); }
   else if(s.type==='data-explorer'){ title = t('sheet_data_explorer'); body = dataExplorerSheet(); }
@@ -1527,11 +1550,13 @@ function bundleDetailSheet(b){
         <div class="item-card" style="cursor:default;">
           <div class="ic-body">
             <span class="inv-num mono">${item.inv}</span>
-            <span class="ic-title">${esc(item.bez)}${it.menge>1?` × ${it.menge}`:''}</span>
+            <span class="ic-title">${esc(item.bez)}</span>
           </div>
+          ${item.menge>1?`<input class="qty-input" type="number" min="1" max="${item.menge}" value="${it.menge}" data-action="set-bundle-item-qty" data-id="${b.id}" data-inv="${it.inv}" />`:''}
           <button class="icon-btn" data-action="remove-bundle-item" data-id="${b.id}" data-inv="${it.inv}">${ICONS.close}</button>
         </div>`; }).join('')}
     </div>
+    <button class="btn btn-secondary" data-action="open-bundle-add-item" data-for="bundle" data-id="${b.id}" style="margin-bottom:14px;">${t('btn_add_bundle_item')}</button>
     <div class="divider"></div>
     <button class="btn btn-secondary" data-action="delete-bundle" data-id="${b.id}" style="color:var(--status-crit);">${t('btn_delete_bundle')}</button>
   `;
@@ -1557,12 +1582,58 @@ function newBundleSheet(){
             <span class="ic-title">${esc(item.bez)}</span>
           </div>
           ${item.menge>1?`<input class="qty-input" type="number" min="1" max="${item.menge}" value="${it.menge}" data-action="set-bundle-draft-qty" data-inv="${it.inv}" />`:''}
+          <button class="icon-btn" data-action="remove-bundle-draft-item" data-inv="${it.inv}">${ICONS.close}</button>
         </div>`; }).join('')}
     </div>
+    <button class="btn btn-secondary" data-action="open-bundle-add-item" data-for="draft" style="margin-bottom:14px;">${t('btn_add_bundle_item')}</button>
     <div class="btn-row">
-      <button class="btn btn-primary" data-action="save-new-bundle" ${!d.name?'disabled style="opacity:.5;"':''}>${t('btn_create_bundle')}</button>
+      <button class="btn btn-primary" data-action="save-new-bundle" ${(!d.name||!d.items.length)?'disabled style="opacity:.5;"':''}>${t('btn_create_bundle')}</button>
     </div>
   `;
+}
+
+function bundleAddItemSheet(s){
+  const items = s.for==='draft' ? ui.newBundleDraft.items : state.bundles.find(x=>x.id===s.id).items;
+  const existingInvs = new Set(items.map(it=>it.inv));
+  return `
+    <p class="field-hint" style="margin-bottom:12px;">${t('bundle_add_item_hint')}</p>
+    <div class="cat-tree">
+      ${catRoots().map(r=>renderBundleAddCatNode(r,0,s,existingInvs)).join('')}
+    </div>
+  `;
+}
+
+function renderBundleAddCatNode(node, depth, s, existingInvs){
+  const children = catChildren(node.id);
+  const directItems = selectableItems().filter(i=>i.cat===node.id);
+  const totalCount = countItemsUnder(node.id);
+  if(totalCount===0) return '';
+  const expanded = ui.expandedCats.has(node.id);
+  return `
+    <div class="cat-node" style="margin-left:${depth*10}px;">
+      <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
+        ${expanded?ICONS.chevDown:ICONS.chevRight}
+        <span class="cat-code mono">${esc(node.code)}</span>
+        <span class="cat-name">${esc(node.name)}</span>
+        <span class="cat-count">${totalCount}</span>
+      </button>
+      ${expanded ? `
+        <div class="cat-children">
+          ${directItems.map(i=>{
+            const already = existingInvs.has(i.inv);
+            return `
+            <button class="item-card" data-action="add-item-to-bundle" data-for="${s.for}" ${s.for==='bundle'?`data-id="${s.id}"`:''} data-inv="${i.inv}" ${already?'disabled style="opacity:.4;"':''}>
+              <div class="ic-body">
+                <span class="inv-num mono">${i.inv}</span>
+                <span class="ic-title">${esc(i.bez)}</span>
+                <span class="ic-meta">${i.menge>1?t('stock_label',{n:i.menge}):fmtEuro(i.miete)+t('per_day')}</span>
+              </div>
+              ${already?`<span class="pill pill-off">${t('already_in_set')}</span>`:''}
+            </button>`; }).join('')}
+          ${children.map(c=>renderBundleAddCatNode(c,depth+1,s,existingInvs)).join('')}
+        </div>
+      ` : ''}
+    </div>`;
 }
 
 /* ---------- statistics ---------- */
@@ -1853,23 +1924,24 @@ function onClick(e){
       pushSheet({type:'stats'}); break;
     case 'toggle-select-mode':
       ui.selectMode = !ui.selectMode;
-      if(!ui.selectMode) ui.selectedInv = new Set();
+      if(!ui.selectMode){ ui.selectedInv = new Set(); ui.selectedQty = {}; }
       render(); break;
     case 'toggle-select-item': {
       const inv = t2.dataset.inv;
-      if(ui.selectedInv.has(inv)) ui.selectedInv.delete(inv); else ui.selectedInv.add(inv);
+      if(ui.selectedInv.has(inv)){ ui.selectedInv.delete(inv); delete ui.selectedQty[inv]; }
+      else { ui.selectedInv.add(inv); ui.selectedQty[inv] = 1; }
       render(); break;
     }
     case 'bulk-add-to-rental': {
-      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
-      ui.selectMode = false; ui.selectedInv = new Set();
+      const items = [...ui.selectedInv].map(inv=>({inv, menge: ui.selectedQty[inv]||1}));
+      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {};
       ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items };
       openSheet({type:'new-rental'});
       break;
     }
     case 'bulk-save-as-set': {
-      const items = [...ui.selectedInv].map(inv=>({inv, menge:1}));
-      ui.selectMode = false; ui.selectedInv = new Set();
+      const items = [...ui.selectedInv].map(inv=>({inv, menge: ui.selectedQty[inv]||1}));
+      ui.selectMode = false; ui.selectedInv = new Set(); ui.selectedQty = {};
       ui.newBundleDraft = { name:'', notiz:'', suggestedPrice:'', items };
       openSheet({type:'new-bundle'});
       break;
@@ -1887,6 +1959,28 @@ function onClick(e){
       doDeleteBundle(t2.dataset.id); break;
     case 'save-new-bundle':
       doSaveNewBundle(); break;
+    case 'remove-bundle-draft-item': {
+      const d = ui.newBundleDraft;
+      d.items = d.items.filter(it=>it.inv!==t2.dataset.inv);
+      render(); break;
+    }
+    case 'open-bundle-add-item':
+      pushSheet({type:'bundle-add-item', for:t2.dataset.for, id:t2.dataset.id}); break;
+    case 'add-item-to-bundle': {
+      const inv = t2.dataset.inv;
+      if(t2.dataset.for==='draft'){
+        const d = ui.newBundleDraft;
+        if(!d.items.some(it=>it.inv===inv)) d.items.push({inv, menge:1});
+      } else {
+        const b = state.bundles.find(x=>x.id===t2.dataset.id);
+        if(!b.items.some(it=>it.inv===inv)){
+          b.items.push({inv, menge:1});
+          api('PATCH', `/api/bundles/${b.id}`, {items:b.items}).catch(()=>showToast(t('toast_sync_failed')));
+        }
+      }
+      popSheet();
+      break;
+    }
     case 'open-data-explorer':
       pushSheet({type:'data-explorer'}); break;
     case 'lock-now':
@@ -1994,8 +2088,26 @@ function onChange(e){
     }
     return;
   }
+  if(action==='set-bundle-item-qty'){
+    const b = state.bundles.find(x=>x.id===t2.dataset.id);
+    const entry = b.items.find(x=>x.inv===t2.dataset.inv);
+    if(entry){
+      const item = byInv(t2.dataset.inv);
+      entry.menge = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
+      render();
+      api('PATCH', `/api/bundles/${b.id}`, {items:b.items}).catch(()=>showToast(t('toast_sync_failed')));
+    }
+    return;
+  }
   if(action==='draft-return'){
     ui.returnDraft[t2.dataset.inv] = t2.value; return;
+  }
+  if(action==='set-select-item-qty'){
+    const inv = t2.dataset.inv;
+    const item = byInv(inv);
+    ui.selectedQty[inv] = Math.min(item.menge, Math.max(1, parseInt(t2.value,10)||1));
+    render();
+    return;
   }
   if(action==='set-rental-item-qty'){
     const d = ui.newRentalDraft;

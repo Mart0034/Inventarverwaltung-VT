@@ -229,10 +229,14 @@ button{cursor:pointer;}
 .item-card.warn{border-left-color:var(--status-warn);}
 .item-card.ok{border-left-color:var(--status-ok);}
 
-.rental-pick-row .pack-check{flex:none;}
+.rental-pick-row .pack-check, .select-row .pack-check{flex:none;}
 .conflict-note{
   margin-left:auto;flex:none;text-align:right;max-width:40%;
   font-size:.68rem;color:var(--status-crit);line-height:1.25;
+}
+.stock-note{
+  margin-left:auto;flex:none;text-align:right;
+  font-size:.72rem;color:var(--text-muted);white-space:nowrap;
 }
 .qty-input{
   flex:none;width:52px;text-align:center;padding:6px 4px;
