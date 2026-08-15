@@ -869,7 +869,6 @@ function incompleteFields(i){
   if(!i.modell || !i.modell.trim()) missing.push(t('field_modelltyp'));
   if(!i.standort || !i.standort.trim()) missing.push(t('field_standort'));
   if(!i.miete) missing.push(t('field_miete_eur'));
-  if(!i.gewicht) missing.push(t('field_gewicht'));
   if(i.einkaufspreis===null || i.einkaufspreis===undefined || i.einkaufspreis==='') missing.push(t('field_einkaufspreis'));
   if(i.pruef){
     if(!i.letzte) missing.push(t('field_letzte'));
