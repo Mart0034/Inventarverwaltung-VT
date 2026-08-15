@@ -2068,6 +2068,31 @@ function rentalDetailSheet(v){
       </select>
       <span class="field-hint">${t('field_status_manual_hint')}</span>
     </div>
+
+    <div class="field" style="margin-top:6px;">
+      <label>${t('field_notiz')}</label>
+      <textarea data-action="edit-rental" data-field="notiz" data-id="${v.id}">${esc(v.notiz||'')}</textarea>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-head"><h2>${t('field_attachments')}</h2></div>
+    ${v.files.length? `
+      <div class="file-list" style="margin-bottom:10px;">
+        ${v.files.map(f=>`
+          <div class="file-row">
+            <a href="${f.url}" target="_blank" rel="noopener" class="file-link">
+              <span class="file-name">${esc(f.name)}</span><span class="file-size">${fmtFileSize(f.size)}</span>
+            </a>
+            <button class="link-btn" data-action="remove-rental-file" data-id="${v.id}" data-fid="${f.id}">${t('remove_file')}</button>
+          </div>
+        `).join('')}
+      </div>
+    ` : `<p class="field-hint" style="margin-bottom:10px;">${t('files_empty')}</p>`}
+    <label class="photo-upload-btn" style="margin-bottom:14px;">
+      ${t('add_file')}
+      <input type="file" multiple data-action="upload-rental-file" data-id="${v.id}" style="display:none;" />
+    </label>
+
     <div class="divider"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" data-action="toggle-archive-rental" data-id="${v.id}">${v.archiviert? t('btn_unarchive') : t('btn_archive')}</button>
@@ -2077,7 +2102,7 @@ function rentalDetailSheet(v){
 }
 
 function newRentalSheet(){
-  const d = ui.newRentalDraft || (ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items:[] });
+  const d = ui.newRentalDraft || (ui.newRentalDraft = { kunde:'', customerId:null, von:'2026-08-20', bis:'2026-08-22', items:[], notiz:'' });
   const days = rentalDays(d.von,d.bis);
   const total = d.items.reduce((sum,it)=>{ const item=byInv(it.inv); return sum+(item?item.miete*days*it.menge:0); },0);
   return `
@@ -2111,6 +2136,10 @@ function newRentalSheet(){
     <div class="section-head"><h2>${t('choose_items')}</h2><span class="field-hint">${t('n_selected',{n:d.items.length})}</span></div>
     <div class="cat-tree">
       ${catRoots().map(r=>renderRentalCatNode(r,0,d)).join('')}
+    </div>
+    <div class="field" style="margin-top:6px;">
+      <label>${t('field_notiz')}</label>
+      <textarea data-action="draft-rental" data-field="notiz">${esc(d.notiz)}</textarea>
     </div>
     <div class="divider"></div>
     <div class="detail-grid">
@@ -3034,6 +3063,14 @@ function onClick(e){
       api('DELETE', `/api/inventar/${encodeURIComponent(t2.dataset.inv)}/files/${encodeURIComponent(id)}`).catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
+    case 'remove-rental-file': {
+      const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+      const fid = t2.dataset.fid;
+      if(v) v.files = v.files.filter(f=>f.id!==fid);
+      render();
+      api('DELETE', `/api/vermietungen/${encodeURIComponent(t2.dataset.id)}/files/${encodeURIComponent(fid)}`).catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
     case 'remove-draft-file': {
       const idx = parseInt(t2.dataset.idx,10);
       ui.newItemDraft.files.splice(idx,1);
@@ -3574,6 +3611,29 @@ function onChange(e){
     api('PATCH', `/api/vermietungen/${v.id}`, {status: v.status}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
+  if(action==='edit-rental'){
+    const v = state.vermietungen.find(x=>x.id===t2.dataset.id);
+    const field = t2.dataset.field;
+    v[field] = t2.value;
+    api('PATCH', `/api/vermietungen/${v.id}`, {[field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='upload-rental-file'){
+    const id = t2.dataset.id;
+    const files = t2.files ? Array.from(t2.files) : [];
+    t2.value = '';
+    files.reduce((chain,file)=>chain.then(()=>{
+      if(file.size > 8*1024*1024){ showToast(t('toast_file_too_large',{name:file.name})); return; }
+      return readFileAsDataUrl(file).then(dataUrl=>
+        api('POST', `/api/vermietungen/${encodeURIComponent(id)}/files`, {dataUrl, name:file.name})
+      ).then(updated=>{
+        const v = state.vermietungen.find(x=>x.id===id);
+        if(v) v.files = updated.files;
+        render();
+      });
+    }), Promise.resolve()).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
 }
 
 async function doSaveNewItem(){
@@ -3660,10 +3720,11 @@ async function doSaveNewRental(){
   const kunde = d.kunde;
   const customerId = d.customerId || null;
   const items = d.items.map(it=>({...it}));
+  const notiz = d.notiz || '';
   closeSheets();
   showToast(t('toast_rental_created',{kunde}));
   try {
-    const v = await api('POST', '/api/vermietungen', {kunde, customerId, von:d.von, bis:d.bis, items});
+    const v = await api('POST', '/api/vermietungen', {kunde, customerId, von:d.von, bis:d.bis, items, notiz});
     state.vermietungen.push(v);
     items.forEach(({inv})=>{ const it=byInv(inv); if(it && it.menge<=1) it.status='Reserviert'; });
     render();

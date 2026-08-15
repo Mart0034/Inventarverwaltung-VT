@@ -569,11 +569,15 @@ function filesForInv(inv) {
   return db.prepare('SELECT id, filename, original_name, mime, size, uploaded_at FROM inventar_files WHERE inv = ? ORDER BY uploaded_at').all(inv)
     .map(f => ({ id: f.id, name: f.original_name, mime: f.mime, size: f.size, uploadedAt: f.uploaded_at, url: `/files/${encodeURIComponent(f.filename)}` }));
 }
+function filesForVermietung(id) {
+  return db.prepare('SELECT id, filename, original_name, mime, size, uploaded_at FROM vermietungen_files WHERE vermietung_id = ? ORDER BY uploaded_at').all(id)
+    .map(f => ({ id: f.id, name: f.original_name, mime: f.mime, size: f.size, uploadedAt: f.uploaded_at, url: `/files/${encodeURIComponent(f.filename)}` }));
+}
 function itemRow(row) {
   return { ...row, pruef: !!row.pruef, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv), files: filesForInv(row.inv) };
 }
 function rentalRow(row) {
-  return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack), archiviert: !!row.archiviert };
+  return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack), archiviert: !!row.archiviert, files: filesForVermietung(row.id) };
 }
 function bundleRow(row) {
   const items = db.prepare('SELECT inv, menge FROM bundle_items WHERE bundle_id = ?').all(row.id);
@@ -1118,6 +1122,9 @@ app.patch('/api/vermietungen/:id', (req, res) => {
   if (req.body.archiviert !== undefined) {
     db.prepare('UPDATE vermietungen SET archiviert = ? WHERE id = ?').run(req.body.archiviert ? 1 : 0, v.id);
   }
+  if (req.body.notiz !== undefined) {
+    db.prepare('UPDATE vermietungen SET notiz = ? WHERE id = ?').run(req.body.notiz, v.id);
+  }
   res.json(rentalRow(db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(v.id)));
 });
 
@@ -1125,6 +1132,36 @@ app.delete('/api/vermietungen/:id', (req, res) => {
   if (!db.prepare('SELECT 1 FROM vermietungen WHERE id = ?').get(req.params.id)) return res.status(404).json({ error: 'not found' });
   db.prepare('DELETE FROM vermietungen WHERE id = ?').run(req.params.id);
   res.status(204).end();
+});
+
+/* ---- rental file attachments (delivery notes, contracts, damage photos, ...) ---- */
+
+app.post('/api/vermietungen/:id/files', (req, res) => {
+  const row = db.prepare('SELECT 1 FROM vermietungen WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const { dataUrl, name } = req.body;
+  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl || '');
+  if (!match) return res.status(400).json({ error: 'expected a base64 data URL' });
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 8 * 1024 * 1024) return res.status(413).json({ error: 'file too large (max 8mb)' });
+  const originalName = (name && String(name).trim()) || 'Datei';
+  const ext = path.extname(originalName).replace(/[^a-zA-Z0-9.]/g, '').slice(0, 10);
+  const id = crypto.randomUUID();
+  const filename = `${req.params.id.replace(/[^a-zA-Z0-9.-]/g, '_')}-${Date.now()}-${id.slice(0, 8)}${ext}`;
+  fs.writeFileSync(path.join(FILES_DIR, filename), buffer);
+  db.prepare(`
+    INSERT INTO vermietungen_files (id, vermietung_id, filename, original_name, mime, size)
+    VALUES (@id, @vermietung_id, @filename, @original_name, @mime, @size)
+  `).run({ id, vermietung_id: req.params.id, filename, original_name: originalName, mime: match[1] || 'application/octet-stream', size: buffer.length });
+  res.status(201).json(rentalRow(db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(req.params.id)));
+});
+
+app.delete('/api/vermietungen/:id/files/:fileId', (req, res) => {
+  const fileRow = db.prepare('SELECT * FROM vermietungen_files WHERE id = ? AND vermietung_id = ?').get(req.params.fileId, req.params.id);
+  if (!fileRow) return res.status(404).json({ error: 'not found' });
+  try { fs.unlinkSync(path.join(FILES_DIR, fileRow.filename)); } catch (e) { /* already gone */ }
+  db.prepare('DELETE FROM vermietungen_files WHERE id = ?').run(req.params.fileId);
+  res.json(rentalRow(db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(req.params.id)));
 });
 
 // Items with menge > 1 (bulk/quantity stock) don't get their inventar.status
@@ -1145,7 +1182,7 @@ function normalizeRentalItems(items) {
 }
 
 app.post('/api/vermietungen', (req, res) => {
-  const { kunde, customerId, von, bis, items: rawItems } = req.body;
+  const { kunde, customerId, von, bis, items: rawItems, notiz } = req.body;
   if (!kunde || !von || !bis || !Array.isArray(rawItems) || rawItems.length === 0) {
     return res.status(400).json({ error: 'kunde, von, bis, items required' });
   }
@@ -1156,8 +1193,8 @@ app.post('/api/vermietungen', (req, res) => {
   const pack = Object.fromEntries(items.map(i => [i.inv, false]));
 
   const tx = db.transaction(() => {
-    db.prepare('INSERT INTO vermietungen (id, kunde, customer_id, von, bis, status, items, pack) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      .run(id, kunde, customerId || null, von, bis, 'Reserviert', JSON.stringify(items), JSON.stringify(pack));
+    db.prepare('INSERT INTO vermietungen (id, kunde, customer_id, von, bis, status, items, pack, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(id, kunde, customerId || null, von, bis, 'Reserviert', JSON.stringify(items), JSON.stringify(pack), notiz || '');
     setStatusForNonBulkItems(items, 'Reserviert');
   });
   tx();

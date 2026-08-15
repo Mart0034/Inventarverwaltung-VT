@@ -95,7 +95,21 @@ db.exec(`
     status TEXT NOT NULL,
     items TEXT NOT NULL,
     pack TEXT NOT NULL,
-    archiviert INTEGER NOT NULL DEFAULT 0
+    archiviert INTEGER NOT NULL DEFAULT 0,
+    notiz TEXT DEFAULT ''
+  );
+
+  -- File attachments (delivery notes, signed contracts, damage photos, ...)
+  -- tied to a rental, mirroring inventar_files. Bytes live on disk under
+  -- DATA_DIR/files/<filename>, same shared folder as item attachments.
+  CREATE TABLE IF NOT EXISTS vermietungen_files (
+    id TEXT PRIMARY KEY,
+    vermietung_id TEXT NOT NULL REFERENCES vermietungen(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    original_name TEXT NOT NULL,
+    mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+    size INTEGER NOT NULL DEFAULT 0,
+    uploaded_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   -- A tag is a lightweight cross-reference for "all the identical 5m XLR
@@ -209,6 +223,7 @@ ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
 ensureColumn('inventar_checklist', 'alt_group', 'alt_group TEXT');
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
+ensureColumn('vermietungen', 'notiz', "notiz TEXT DEFAULT ''");
 
 // Existing installs won't have sort_order on categories -- backfill it once
 // from the current row order (rowid), grouped by parent, so a fresh column
