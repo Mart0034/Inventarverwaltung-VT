@@ -452,6 +452,23 @@ button{cursor:pointer;}
 .checklist-preview-row:last-child{border-bottom:none;}
 .checklist-preview-row button{background:none;border:none;color:var(--text-faint);width:18px;height:18px;flex:none;display:flex;align-items:center;justify-content:center;}
 .checklist-preview-row button svg{width:12px;height:12px;}
+.checklist-preview-row .checklist-group-select{flex:none;}
+
+.checklist-field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.checklist-field-head label{margin:0;}
+.checklist-alt-group{
+  border:1px solid var(--accent);border-radius:8px;overflow:hidden;margin:4px;
+}
+.checklist-alt-group-head{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:5px 10px;background:var(--surface-3);
+}
+.checklist-alt-group-label{font-size:.7rem;font-weight:600;color:var(--accent-strong);}
+.checklist-alt-group .checklist-preview-row{background:var(--surface);}
+.checklist-alt-divider{
+  text-align:center;font-size:.7rem;font-weight:600;color:var(--text-faint);
+  padding:2px 0;background:var(--surface-2);
+}
 
 .btn{
   width:100%;padding:12px 16px;border-radius:12px;border:none;font-weight:600;font-size:.9rem;
@@ -548,15 +565,6 @@ button{cursor:pointer;}
 .cat-edit-row input.code{width:48px;flex:none;text-align:center;padding:7px 4px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:.8rem;}
 .cat-edit-row input.name{flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:.85rem;min-width:0;}
 .cat-edit-children{margin-left:14px;border-left:1px solid var(--border);padding-left:8px;margin-top:2px;margin-bottom:4px;}
-.test-type-group-block{
-  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
-  padding:12px 12px 6px;margin-bottom:12px;
-}
-.test-type-group-picker{
-  background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
-  padding:8px 10px;margin-bottom:8px;
-}
-.test-type-group-picker-label{display:block;font-size:.72rem;font-weight:600;color:var(--text-faint);margin-bottom:4px;}
 .cat-edit-children > .add-link{margin-left:0;}
 .cat-move-btns{display:flex;flex-direction:column;gap:2px;flex:none;}
 .cat-move-btn{

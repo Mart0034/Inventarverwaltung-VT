@@ -110,22 +110,10 @@ db.exec(`
     cat TEXT NOT NULL REFERENCES categories(id)
   );
 
-  -- A group bundles 2+ test types as alternatives to each other (e.g.
-  -- "DGUV V3" or "VDE 0701-0702" -- either one satisfies the same
-  -- requirement). Purely organizational: it just clusters those test
-  -- types together when picking one for an item, it never restricts
-  -- which (or how many) get added to an item's checklist.
-  CREATE TABLE IF NOT EXISTS test_type_groups (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    sort_order INTEGER NOT NULL DEFAULT 0
-  );
-
   CREATE TABLE IF NOT EXISTS test_types (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-    group_id TEXT REFERENCES test_type_groups(id) ON DELETE SET NULL
+    sort_order INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS test_type_items (
@@ -139,12 +127,18 @@ db.exec(`
   -- so each item has its own independently-editable, independently
   -- checkable-off copy -- editing the shared test_types template later
   -- doesn't retroactively change items that already picked it.
+  -- alt_group clusters 2+ rows on the SAME item as alternatives of each
+  -- other (e.g. "Schutzleiterwiderstand messen (DGUV V3)" OR "Isolations-
+  -- widerstand messen (VDE 0701)") -- ticking any one member satisfies the
+  -- whole group. It's just a free-form key shared by rows within one item's
+  -- checklist, set up ad hoc per item rather than inherited from a template.
   CREATE TABLE IF NOT EXISTS inventar_checklist (
     id TEXT PRIMARY KEY,
     inv TEXT NOT NULL REFERENCES inventar(inv) ON DELETE CASCADE,
     text TEXT NOT NULL,
     checked INTEGER NOT NULL DEFAULT 0,
-    sort_order INTEGER NOT NULL DEFAULT 0
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    alt_group TEXT
   );
 
   -- Arbitrary file attachments (invoices, extra photos, manuals, etc.) tied
@@ -212,7 +206,7 @@ ensureColumn('inventar', 'intervall', 'intervall INTEGER');
 ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
 ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
-ensureColumn('test_types', 'group_id', 'group_id TEXT REFERENCES test_type_groups(id) ON DELETE SET NULL');
+ensureColumn('inventar_checklist', 'alt_group', 'alt_group TEXT');
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
 
@@ -400,17 +394,11 @@ function seedIfEmpty() {
   });
   tx();
 
-  const insertTestTypeGroup = db.prepare('INSERT INTO test_type_groups (id, name, sort_order) VALUES (@id, @name, @sort_order)');
-  insertTestTypeGroup.run({ id: 'ttg-elektro-beweglich', name: 'Elektroprüfung (ortsveränderliche Geräte)', sort_order: 0 });
-
-  const insertTestType = db.prepare('INSERT INTO test_types (id, name, sort_order, group_id) VALUES (@id, @name, @sort_order, @group_id)');
+  const insertTestType = db.prepare('INSERT INTO test_types (id, name, sort_order) VALUES (@id, @name, @sort_order)');
   const insertTestItem = db.prepare('INSERT INTO test_type_items (id, test_type_id, text, sort_order) VALUES (@id, @test_type_id, @text, @sort_order)');
   const testTypes = [
     {
-      // Alternatives for the same requirement (ortsveränderliche Geräte) --
-      // either standard is acceptable, never both -- so they're bundled
-      // into the "Elektroprüfung" group above as a working example.
-      id: 'tt-dguv-v3-orts-veraenderlich', groupId: 'ttg-elektro-beweglich', name: 'DGUV V3 (ortsveränderliche Geräte)', items: [
+      id: 'tt-dguv-v3-orts-veraenderlich', name: 'DGUV V3 (ortsveränderliche Geräte)', items: [
         'Sichtprüfung auf äußere Beschädigungen (Gehäuse, Kabel, Stecker)',
         'Prüfung der Kennzeichnung/Beschriftung',
         'Schutzleiterwiderstand messen (Schutzklasse I)',
@@ -433,7 +421,7 @@ function seedIfEmpty() {
       ],
     },
     {
-      id: 'tt-vde-0701-0702', groupId: 'ttg-elektro-beweglich', name: 'VDE 0701-0702', items: [
+      id: 'tt-vde-0701-0702', name: 'VDE 0701-0702', items: [
         'Sichtprüfung auf Beschädigungen',
         'Schutzleiterwiderstand messen',
         'Isolationswiderstand messen',
@@ -483,7 +471,7 @@ function seedIfEmpty() {
   ];
   const insertManyTestTypes = db.transaction(() => {
     testTypes.forEach((tt, ttIdx) => {
-      insertTestType.run({ id: tt.id, name: tt.name, sort_order: ttIdx, group_id: tt.groupId || null });
+      insertTestType.run({ id: tt.id, name: tt.name, sort_order: ttIdx });
       tt.items.forEach((text, itemIdx) => {
         insertTestItem.run({ id: `${tt.id}-${itemIdx}`, test_type_id: tt.id, text, sort_order: itemIdx });
       });

@@ -59,14 +59,11 @@ const STRINGS = {
     field_tag:'Tag (optional)', opt_no_tag:'— Kein Tag —',
     field_test_types:'Prüfarten', field_checklist_preview:'Checkliste (Vorschau)', field_checklist:'Checkliste',
     checklist_empty:'Noch keine Checklisten-Einträge.', checklist_extra_placeholder:'Weiterer Punkt …',
+    btn_group_checklist:'Alternative gruppieren', btn_group_confirm:'{n} gruppieren', btn_ungroup:'Gruppierung aufheben',
+    checklist_alt_group_label:'Alternativen — eine davon genügt', checklist_alt_or:'oder',
     test_types_p:'Prüfarten mit ihrer Standard-Checkliste. Beim Anlegen eines prüfpflichtigen Artikels lassen sich passende Prüfarten auswählen — ihre Checkliste wird übernommen und lässt sich individuell ergänzen.',
     test_type_name_placeholder:'Neue Prüfart …',
     confirm_delete_test_type:'Diese Prüfart wirklich löschen? Bereits angelegte Artikel behalten ihre Checkliste.',
-    test_type_group_name_placeholder:'Neue Gruppe (z. B. „Elektroprüfung“) …',
-    test_type_group_hint:'Alternativen — für ein Artikel genügt in der Regel eine davon.',
-    test_type_group_empty:'Noch keine Prüfarten in dieser Gruppe.',
-    test_type_group_label:'Gruppe', opt_no_group:'— Keine Gruppe —',
-    confirm_delete_test_type_group:'Diese Gruppe wirklich löschen? Die enthaltenen Prüfarten bleiben erhalten, nur nicht mehr gruppiert.',
     toast_test_type_already_added:'Prüfart bereits vollständig enthalten.',
     nav_flightcases:'Cases', flightcases_p:'Alle Flightcases und Rackcases mit Spitzname und Inhalt auf einen Blick.',
     empty_flightcases:'Noch keine Cases angelegt.',
@@ -262,14 +259,11 @@ const STRINGS = {
     field_tag:'Tag (optional)', opt_no_tag:'— No tag —',
     field_test_types:'Test types', field_checklist_preview:'Checklist (preview)', field_checklist:'Checklist',
     checklist_empty:'No checklist items yet.', checklist_extra_placeholder:'Another item …',
+    btn_group_checklist:'Group as alternatives', btn_group_confirm:'Group {n}', btn_ungroup:'Ungroup',
+    checklist_alt_group_label:'Alternatives — either one is enough', checklist_alt_or:'or',
     test_types_p:'Test types with their default checklist. When creating an item that requires inspection, pick the matching type(s) -- their checklist is copied in and can be adjusted per item.',
     test_type_name_placeholder:'New test type …',
     confirm_delete_test_type:'Delete this test type? Items that already used it keep their checklist.',
-    test_type_group_name_placeholder:'New group (e.g. "Electrical test") …',
-    test_type_group_hint:'Alternatives — usually only one of these is needed per item.',
-    test_type_group_empty:'No test types in this group yet.',
-    test_type_group_label:'Group', opt_no_group:'— No group —',
-    confirm_delete_test_type_group:'Delete this group? Its test types stay, just no longer grouped.',
     toast_test_type_already_added:'Test type already fully included.',
     nav_flightcases:'Cases', flightcases_p:'All flightcases and rackcases with nickname and contents at a glance.',
     empty_flightcases:'No cases yet.',
@@ -485,6 +479,7 @@ let lastRenderedTab = null;
 
 let ui = {
   tab:'start', sheetStack:[], search:'', fStatus:null, toast:null, showIncompleteOnly:false,
+  checklistGroupInv:null, checklistGroupSelection: new Set(),
   newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
   selectMode:false, selectedInv: new Set(),
   expandedCats: new Set(),
@@ -852,6 +847,16 @@ function childCountOf(inv){ return state.inventar.filter(x=>x.parent===inv).leng
 // Exempt from completeness checks (confirmed with the shop owner): photo,
 // serial number, flightcase ("no flightcase" is a valid value), what a case
 // contains, notes, files, and -- unless Prüfpflichtig is on -- the checklist.
+// A checklist counts as done when every row is either checked, or belongs
+// to an alt-group where at least one member is checked (either satisfies
+// the same requirement).
+function isChecklistSatisfied(checklist){
+  if(!checklist || !checklist.length) return false;
+  const groupSatisfied = {};
+  checklist.forEach(c=>{ if(c.altGroup && c.checked) groupSatisfied[c.altGroup]=true; });
+  return checklist.every(c=> c.checked || (c.altGroup && groupSatisfied[c.altGroup]));
+}
+
 function isItemIncomplete(i){
   if(!i.bez || !i.bez.trim()) return true;
   if(!i.hersteller || !i.hersteller.trim()) return true;
@@ -863,7 +868,7 @@ function isItemIncomplete(i){
   if(i.pruef){
     if(!i.letzte) return true;
     if(!i.intervall) return true;
-    if(!i.checklist || i.checklist.length===0) return true;
+    if(!isChecklistSatisfied(i.checklist)) return true;
   }
   return false;
 }
@@ -1174,24 +1179,6 @@ function renderTagEditor(node, tags){
     </div>`;
 }
 
-// Shared by the new-item and item-detail Prüfarten pickers: clusters test
-// types that belong to the same group together (with a hint that they're
-// alternatives), while leaving every one of them independently pickable --
-// grouping is purely visual, nothing stops picking more than one.
-function groupedTestTypesMarkup(renderOne){
-  const ungrouped = state.testTypes.filter(tt=>!tt.groupId);
-  const groupsHtml = state.testTypeGroups.map(g=>{
-    const members = state.testTypes.filter(tt=>tt.groupId===g.id);
-    if(!members.length) return '';
-    return `
-      <div class="test-type-group-picker">
-        <span class="test-type-group-picker-label">${esc(g.name)}</span>
-        ${members.map(renderOne).join('')}
-      </div>`;
-  }).join('');
-  return groupsHtml + ungrouped.map(renderOne).join('');
-}
-
 function renderTestTypeEditor(tt){
   const expanded = ui.expandedTestTypes.has(tt.id);
   return `
@@ -1203,15 +1190,6 @@ function renderTestTypeEditor(tt){
       </div>
       ${expanded ? `
         <div class="cat-edit-children">
-          ${state.testTypeGroups.length? `
-            <div class="field" style="margin-bottom:10px;">
-              <label>${t('test_type_group_label')}</label>
-              <select data-action="set-test-type-group" data-id="${tt.id}">
-                <option value="">${t('opt_no_group')}</option>
-                ${state.testTypeGroups.map(g=>`<option value="${g.id}" ${tt.groupId===g.id?'selected':''}>${esc(g.name)}</option>`).join('')}
-              </select>
-            </div>
-          ` : ''}
           ${tt.items.length? `
             <div class="checklist-preview">
               ${tt.items.map(it=>`
@@ -1521,6 +1499,50 @@ function sheetOverlay(){
     </div>`;
 }
 
+// A checklist row, optionally with a selection checkbox for grouping mode
+// (only offered on ungrouped rows -- moving a row between groups isn't
+// supported, ungroup first).
+function checklistRowMarkup(i, c, groupMode){
+  const selectBox = (groupMode && !c.altGroup) ? `
+    <input type="checkbox" class="checklist-group-select" data-action="toggle-checklist-group-select" data-id="${c.id}" ${ui.checklistGroupSelection.has(c.id)?'checked':''} />
+  ` : '';
+  return `
+    <div class="checklist-preview-row">
+      ${selectBox}
+      <label class="checkbox-field" style="margin:0;flex:1;">
+        <input type="checkbox" data-action="toggle-checklist-item" data-inv="${i.inv}" data-id="${c.id}" ${c.checked?'checked':''} />
+        <span style="${c.checked?'text-decoration:line-through;color:var(--text-faint);':''}">${esc(c.text)}</span>
+      </label>
+      <button data-action="remove-checklist-item" data-inv="${i.inv}" data-id="${c.id}">${ICONS.close}</button>
+    </div>`;
+}
+
+// Clusters checklist rows sharing an altGroup into a boxed "either/or" block
+// (ticking any one member satisfies the group); everything else renders as
+// a normal single row.
+function checklistListMarkup(i, groupMode){
+  const rendered = new Set();
+  let html = '';
+  i.checklist.forEach(c=>{
+    if(c.altGroup){
+      if(rendered.has(c.altGroup)) return;
+      rendered.add(c.altGroup);
+      const members = i.checklist.filter(x=>x.altGroup===c.altGroup);
+      html += `
+        <div class="checklist-alt-group">
+          <div class="checklist-alt-group-head">
+            <span class="checklist-alt-group-label">${t('checklist_alt_group_label')}</span>
+            <button class="link-btn" data-action="ungroup-checklist-alt" data-inv="${i.inv}" data-group="${esc(c.altGroup)}">${t('btn_ungroup')}</button>
+          </div>
+          ${members.map((m,idx)=>`${idx>0?`<div class="checklist-alt-divider">${t('checklist_alt_or')}</div>`:''}${checklistRowMarkup(i,m,groupMode)}`).join('')}
+        </div>`;
+    } else {
+      html += checklistRowMarkup(i,c,groupMode);
+    }
+  });
+  return html;
+}
+
 function itemDetailSheet(i){
   const ps = pruefStatus(i);
   const children = state.inventar.filter(x=>x.parent===i.inv);
@@ -1662,27 +1684,25 @@ function itemDetailSheet(i){
         <div class="field">
           <label>${t('field_test_types')}</label>
           <div class="checkbox-list">
-            ${groupedTestTypesMarkup(tt=>`
+            ${state.testTypes.map(tt=>`
               <button type="button" class="add-link top" data-action="add-item-test-type" data-inv="${i.inv}" data-id="${tt.id}">+ ${esc(tt.name)}</button>
-            `)}
+            `).join('')}
           </div>
         </div>
       ` : ''}
       <div class="field">
-        <label>${t('field_checklist')}</label>
+        <div class="checklist-field-head">
+          <label style="margin:0;">${t('field_checklist')}</label>
+          ${i.checklist.length>1 ? `<button class="link-btn" data-action="toggle-checklist-group-mode" data-inv="${i.inv}">${ui.checklistGroupInv===i.inv? t('btn_cancel_select') : t('btn_group_checklist')}</button>` : ''}
+        </div>
         ${i.checklist.length? `
           <div class="checklist-preview">
-            ${i.checklist.map(c=>`
-              <div class="checklist-preview-row">
-                <label class="checkbox-field" style="margin:0;flex:1;">
-                  <input type="checkbox" data-action="toggle-checklist-item" data-inv="${i.inv}" data-id="${c.id}" ${c.checked?'checked':''} />
-                  <span style="${c.checked?'text-decoration:line-through;color:var(--text-faint);':''}">${esc(c.text)}</span>
-                </label>
-                <button data-action="remove-checklist-item" data-inv="${i.inv}" data-id="${c.id}">${ICONS.close}</button>
-              </div>
-            `).join('')}
+            ${checklistListMarkup(i, ui.checklistGroupInv===i.inv)}
           </div>
         ` : `<p class="field-hint">${t('checklist_empty')}</p>`}
+        ${ui.checklistGroupInv===i.inv && ui.checklistGroupSelection.size>=2 ? `
+          <button class="btn btn-secondary" style="margin-top:8px;" data-action="confirm-checklist-group" data-inv="${i.inv}">${t('btn_group_confirm',{n:ui.checklistGroupSelection.size})}</button>
+        ` : ''}
         <div class="add-inline">
           <input type="text" id="new-checklist-item-${i.inv}" placeholder="${t('checklist_extra_placeholder')}" />
           <button data-action="add-checklist-item" data-inv="${i.inv}">${t('add')}</button>
@@ -1849,12 +1869,12 @@ function newItemSheet(){
       <div class="field">
         <label>${t('field_test_types')}</label>
         <div class="checkbox-list">
-          ${groupedTestTypesMarkup(tt=>`
+          ${state.testTypes.map(tt=>`
             <label class="checkbox-field">
               <input type="checkbox" data-action="toggle-draft-test-type" data-id="${tt.id}" ${d.testTypes.includes(tt.id)?'checked':''} />
               <span>${esc(tt.name)}</span>
             </label>
-          `)}
+          `).join('')}
         </div>
       </div>
       <div class="field">
@@ -2383,31 +2403,10 @@ function flightcasesSheet(){
   `;
 }
 
-function renderTestTypeGroupBlock(g){
-  const members = state.testTypes.filter(tt=>tt.groupId===g.id);
-  return `
-    <div class="test-type-group-block">
-      <div class="cat-edit-row">
-        <input class="name" data-action="edit-test-type-group-name" data-id="${g.id}" value="${esc(g.name)}" />
-        <button class="icon-btn cat-delete-btn" data-action="delete-test-type-group" data-id="${g.id}" aria-label="${t('delete')}">${ICONS.close}</button>
-      </div>
-      <p class="field-hint" style="margin:2px 0 8px 4px;">${t('test_type_group_hint')}</p>
-      ${members.length? members.map(tt=>renderTestTypeEditor(tt)).join('') : `<p class="field-hint" style="margin-left:4px;">${t('test_type_group_empty')}</p>`}
-    </div>
-  `;
-}
-
 function testTypesSheet(){
-  const ungrouped = state.testTypes.filter(tt=>!tt.groupId);
   return `
     <p class="field-hint" style="margin-bottom:12px;">${t('test_types_p')}</p>
-    ${state.testTypeGroups.map(g=>renderTestTypeGroupBlock(g)).join('')}
-    <div class="add-inline" style="margin-bottom:16px;">
-      <input type="text" id="new-test-type-group" placeholder="${t('test_type_group_name_placeholder')}" />
-      <button data-action="add-test-type-group">${t('add')}</button>
-    </div>
-    ${state.testTypeGroups.length ? `<div class="divider"></div>` : ''}
-    ${ungrouped.map(tt=>renderTestTypeEditor(tt)).join('')}
+    ${state.testTypes.map(tt=>renderTestTypeEditor(tt)).join('')}
     <div class="add-inline" style="margin-top:10px;">
       <input type="text" id="new-test-type" placeholder="${t('test_type_name_placeholder')}" />
       <button data-action="add-test-type">${t('add')}</button>
@@ -3053,7 +3052,16 @@ function onClick(e){
     }
     case 'remove-checklist-item': {
       const item = byInv(t2.dataset.inv);
+      const removed = item.checklist.find(c=>c.id===t2.dataset.id);
       item.checklist = item.checklist.filter(c=>c.id!==t2.dataset.id);
+      // A group of 1 is meaningless -- dissolve it back to a normal row.
+      if(removed && removed.altGroup){
+        const remaining = item.checklist.filter(c=>c.altGroup===removed.altGroup);
+        if(remaining.length===1){
+          remaining[0].altGroup = null;
+          api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(remaining[0].id)}`, {altGroup:null}).catch(()=>{});
+        }
+      }
       render();
       api('DELETE', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(t2.dataset.id)}`).catch(()=>showToast(t('toast_sync_failed')));
       break;
@@ -3064,6 +3072,47 @@ function onClick(e){
       if(inp && inp.value.trim()){
         doAddChecklistItem(inv, inp.value.trim());
       }
+      break;
+    }
+    case 'toggle-checklist-group-mode': {
+      const inv = t2.dataset.inv;
+      ui.checklistGroupInv = (ui.checklistGroupInv===inv) ? null : inv;
+      ui.checklistGroupSelection = new Set();
+      render();
+      break;
+    }
+    case 'toggle-checklist-group-select': {
+      const id = t2.dataset.id;
+      if(ui.checklistGroupSelection.has(id)) ui.checklistGroupSelection.delete(id);
+      else ui.checklistGroupSelection.add(id);
+      render();
+      break;
+    }
+    case 'confirm-checklist-group': {
+      const item = byInv(t2.dataset.inv);
+      const ids = [...ui.checklistGroupSelection];
+      if(item && ids.length>=2){
+        const altGroup = `alt-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+        ids.forEach(id=>{
+          const entry = item.checklist.find(c=>c.id===id);
+          if(entry) entry.altGroup = altGroup;
+        });
+        ui.checklistGroupInv = null;
+        ui.checklistGroupSelection = new Set();
+        render();
+        Promise.all(ids.map(id=>api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(id)}`, {altGroup})))
+          .catch(()=>{ showToast(t('toast_sync_failed')); loadState(); });
+      }
+      break;
+    }
+    case 'ungroup-checklist-alt': {
+      const item = byInv(t2.dataset.inv);
+      const group = t2.dataset.group;
+      const members = item.checklist.filter(c=>c.altGroup===group);
+      members.forEach(m=>{ m.altGroup = null; });
+      render();
+      Promise.all(members.map(m=>api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}/checklist/${encodeURIComponent(m.id)}`, {altGroup:null})))
+        .catch(()=>{ showToast(t('toast_sync_failed')); loadState(); });
       break;
     }
     case 'add-item-test-type':
@@ -3127,10 +3176,6 @@ function onClick(e){
     }
     case 'add-test-type':
       doAddTestType(); break;
-    case 'add-test-type-group':
-      doAddTestTypeGroup(); break;
-    case 'delete-test-type-group':
-      doDeleteTestTypeGroup(t2.dataset.id); break;
     case 'toggle-show-archived':
       ui.showArchived = !ui.showArchived; render(); break;
     case 'toggle-archive-rental': {
@@ -3485,19 +3530,6 @@ function onChange(e){
     api('PATCH', `/api/test-types/${tt.id}`, {name: tt.name}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
-  if(action==='set-test-type-group'){
-    const tt = state.testTypes.find(x=>x.id===t2.dataset.id);
-    tt.groupId = t2.value || null;
-    render();
-    api('PATCH', `/api/test-types/${tt.id}`, {groupId: tt.groupId}).catch(()=>showToast(t('toast_sync_failed')));
-    return;
-  }
-  if(action==='edit-test-type-group-name'){
-    const g = state.testTypeGroups.find(x=>x.id===t2.dataset.id);
-    g.name = t2.value;
-    api('PATCH', `/api/test-type-groups/${g.id}`, {name: g.name}).catch(()=>showToast(t('toast_sync_failed')));
-    return;
-  }
   if(action==='edit-tag'){
     const tg = state.tags.find(x=>x.id===t2.dataset.id);
     const field = t2.dataset.field;
@@ -3742,7 +3774,7 @@ async function doDeleteItem(inv){
 
 async function doAddChecklistItem(inv, text){
   const item = byInv(inv);
-  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked})), {text, checked:false}];
+  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked, altGroup:c.altGroup||null})), {text, checked:false}];
   try {
     const updated = await api('PUT', `/api/inventar/${encodeURIComponent(inv)}/checklist`, {items});
     item.checklist = updated.checklist;
@@ -3761,7 +3793,7 @@ async function doAddTestTypeToItem(inv, testTypeId){
   const existingTexts = new Set(item.checklist.map(c=>c.text));
   const newTexts = tt.items.map(it=>it.text).filter(text=>!existingTexts.has(text));
   if(!newTexts.length){ showToast(t('toast_test_type_already_added')); return; }
-  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked})), ...newTexts.map(text=>({text, checked:false}))];
+  const items = [...item.checklist.map(c=>({text:c.text, checked:c.checked, altGroup:c.altGroup||null})), ...newTexts.map(text=>({text, checked:false}))];
   try {
     const updated = await api('PUT', `/api/inventar/${encodeURIComponent(inv)}/checklist`, {items});
     item.checklist = updated.checklist;
@@ -3823,24 +3855,6 @@ async function doDeleteTestType(id){
   state.testTypes = state.testTypes.filter(tt=>tt.id!==id);
   render();
   try { await api('DELETE', `/api/test-types/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
-}
-async function doAddTestTypeGroup(){
-  const inp = document.getElementById('new-test-type-group');
-  if(!inp || !inp.value.trim()) return;
-  const name = inp.value.trim();
-  try {
-    const g = await api('POST', '/api/test-type-groups', {name});
-    state.testTypeGroups.push(g);
-    inp.value = '';
-    render();
-  } catch(e){ showToast(t('toast_sync_failed')); }
-}
-async function doDeleteTestTypeGroup(id){
-  if(!confirm(t('confirm_delete_test_type_group'))) return;
-  state.testTypeGroups = state.testTypeGroups.filter(g=>g.id!==id);
-  state.testTypes.forEach(tt=>{ if(tt.groupId===id) tt.groupId=null; });
-  render();
-  try { await api('DELETE', `/api/test-type-groups/${id}`); } catch(e){ showToast(t('toast_sync_failed')); loadState(); }
 }
 async function doAddTestTypeItem(ttId, text){
   const tt = state.testTypes.find(x=>x.id===ttId);

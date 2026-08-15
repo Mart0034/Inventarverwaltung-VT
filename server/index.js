@@ -562,8 +562,8 @@ function catRow(row) {
   return { id: row.id, code: row.code, name: row.name, parent: row.parent, sortOrder: row.sort_order };
 }
 function checklistForInv(inv) {
-  return db.prepare('SELECT id, text, checked FROM inventar_checklist WHERE inv = ? ORDER BY sort_order').all(inv)
-    .map(c => ({ id: c.id, text: c.text, checked: !!c.checked }));
+  return db.prepare('SELECT id, text, checked, alt_group FROM inventar_checklist WHERE inv = ? ORDER BY sort_order').all(inv)
+    .map(c => ({ id: c.id, text: c.text, checked: !!c.checked, altGroup: c.alt_group || null }));
 }
 function filesForInv(inv) {
   return db.prepare('SELECT id, filename, original_name, mime, size, uploaded_at FROM inventar_files WHERE inv = ? ORDER BY uploaded_at').all(inv)
@@ -581,7 +581,7 @@ function bundleRow(row) {
 }
 function testTypeRow(row) {
   const items = db.prepare('SELECT id, text FROM test_type_items WHERE test_type_id = ? ORDER BY sort_order').all(row.id);
-  return { id: row.id, name: row.name, groupId: row.group_id || null, items };
+  return { id: row.id, name: row.name, items };
 }
 
 function getFullState(req) {
@@ -606,10 +606,9 @@ function getFullState(req) {
   const bundles = db.prepare('SELECT * FROM bundles ORDER BY name').all().map(bundleRow);
   const tags = db.prepare('SELECT * FROM tags').all();
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
-  const testTypeGroups = db.prepare('SELECT * FROM test_type_groups ORDER BY sort_order').all();
   const currentDevice = trustedDeviceFor(req);
   const trustedDevices = db.prepare('SELECT * FROM trusted_devices ORDER BY last_seen_at DESC').all().map(r => trustedDeviceRow(r, currentDevice && currentDevice.id));
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, testTypeGroups, backupToken: BACKUP_TOKEN, trustedDevices };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices };
 }
 
 app.get('/api/state', (req, res) => {
@@ -918,11 +917,12 @@ app.put('/api/inventar/:inv/checklist', (req, res) => {
   const items = Array.isArray(req.body.items) ? req.body.items : [];
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM inventar_checklist WHERE inv = ?').run(inv);
-    const insert = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order) VALUES (?, ?, ?, ?, ?)');
+    const insert = db.prepare('INSERT INTO inventar_checklist (id, inv, text, checked, sort_order, alt_group) VALUES (?, ?, ?, ?, ?, ?)');
     items.forEach((it, idx) => {
       const text = typeof it === 'string' ? it : it.text;
       const checked = typeof it === 'object' && it.checked ? 1 : 0;
-      if (text && text.trim()) insert.run(`${inv}-c${idx}-${Date.now()}`, inv, text.trim(), checked, idx);
+      const altGroup = (typeof it === 'object' && it.altGroup) ? it.altGroup : null;
+      if (text && text.trim()) insert.run(`${inv}-c${idx}-${Date.now()}`, inv, text.trim(), checked, idx, altGroup);
     });
   });
   tx();
@@ -937,6 +937,9 @@ app.patch('/api/inventar/:inv/checklist/:itemId', (req, res) => {
   }
   if (req.body.text !== undefined) {
     db.prepare('UPDATE inventar_checklist SET text = ? WHERE id = ?').run(req.body.text, row.id);
+  }
+  if (req.body.altGroup !== undefined) {
+    db.prepare('UPDATE inventar_checklist SET alt_group = ? WHERE id = ?').run(req.body.altGroup || null, row.id);
   }
   res.json(itemRow(db.prepare('SELECT * FROM inventar WHERE inv = ?').get(req.params.inv)));
 });
@@ -999,13 +1002,6 @@ app.patch('/api/test-types/:id', (req, res) => {
     if (req.body.name !== undefined) {
       db.prepare('UPDATE test_types SET name = ? WHERE id = ?').run(req.body.name, row.id);
     }
-    if (req.body.groupId !== undefined) {
-      const groupId = req.body.groupId || null;
-      if (groupId && !db.prepare('SELECT 1 FROM test_type_groups WHERE id = ?').get(groupId)) {
-        throw new Error('unknown group');
-      }
-      db.prepare('UPDATE test_types SET group_id = ? WHERE id = ?').run(groupId, row.id);
-    }
     if (Array.isArray(req.body.items)) {
       db.prepare('DELETE FROM test_type_items WHERE test_type_id = ?').run(row.id);
       const insertItem = db.prepare('INSERT INTO test_type_items (id, test_type_id, text, sort_order) VALUES (?, ?, ?, ?)');
@@ -1018,34 +1014,6 @@ app.patch('/api/test-types/:id', (req, res) => {
 
 app.delete('/api/test-types/:id', (req, res) => {
   db.prepare('DELETE FROM test_types WHERE id = ?').run(req.params.id);
-  res.status(204).end();
-});
-
-/* ---- test type groups (alternatives, e.g. "DGUV V3 or VDE 0701") ---- */
-
-app.post('/api/test-type-groups', (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) return res.status(400).json({ error: 'name required' });
-  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) AS m FROM test_type_groups').get().m;
-  const id = 'ttg-' + crypto.randomUUID().slice(0, 8);
-  db.prepare('INSERT INTO test_type_groups (id, name, sort_order) VALUES (?, ?, ?)').run(id, name.trim(), maxOrder + 1);
-  res.status(201).json(db.prepare('SELECT * FROM test_type_groups WHERE id = ?').get(id));
-});
-
-app.patch('/api/test-type-groups/:id', (req, res) => {
-  const row = db.prepare('SELECT * FROM test_type_groups WHERE id = ?').get(req.params.id);
-  if (!row) return res.status(404).json({ error: 'not found' });
-  if (req.body.name !== undefined) {
-    db.prepare('UPDATE test_type_groups SET name = ? WHERE id = ?').run(req.body.name, row.id);
-  }
-  res.json(db.prepare('SELECT * FROM test_type_groups WHERE id = ?').get(row.id));
-});
-
-// Deleting a group only ungroups its test types (group_id -> NULL via the
-// column's ON DELETE SET NULL) -- the test types and their checklists are
-// untouched, they just stop being visually clustered together.
-app.delete('/api/test-type-groups/:id', (req, res) => {
-  db.prepare('DELETE FROM test_type_groups WHERE id = ?').run(req.params.id);
   res.status(204).end();
 });
 
