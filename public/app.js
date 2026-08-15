@@ -144,6 +144,7 @@ const STRINGS = {
     sheet_bundle_add_item:'Artikel hinzufügen', btn_add_bundle_item:'+ Artikel hinzufügen',
     bundle_add_item_hint:'Artikel zum Set hinzufügen.', already_in_set:'Bereits im Set',
     btn_select_items:'Auswählen', btn_cancel_select:'Abbrechen', btn_incomplete:'Unvollständig',
+    incomplete_banner_title:'Unvollständig:',
     btn_add_to_rental:'Zur Vermietung', btn_save_as_set:'Als Set speichern',
     btn_bulk_edit:'Mehrere bearbeiten', sheet_bulk_edit:'Mehrere bearbeiten',
     bulk_edit_hint:'Änderungen werden auf alle {n} ausgewählten Artikel angewendet. Nur ausgefüllte Felder werden geändert.',
@@ -344,6 +345,7 @@ const STRINGS = {
     sheet_bundle_add_item:'Add item', btn_add_bundle_item:'+ Add item',
     bundle_add_item_hint:'Add an item to the set.', already_in_set:'Already in set',
     btn_select_items:'Select', btn_cancel_select:'Cancel', btn_incomplete:'Incomplete',
+    incomplete_banner_title:'Incomplete:',
     btn_add_to_rental:'To rental', btn_save_as_set:'Save as set',
     btn_bulk_edit:'Edit selected', sheet_bulk_edit:'Edit selected',
     bulk_edit_hint:'Changes apply to all {n} selected items. Only fields you fill in are changed.',
@@ -478,7 +480,7 @@ let lastSheetKey = null;
 let lastRenderedTab = null;
 
 let ui = {
-  tab:'start', sheetStack:[], search:'', fStatus:null, toast:null, showIncompleteOnly:false,
+  tab:'start', sheetStack:[], search:'', fStatus:null, toast:null, showIncompleteOnly:false, showCasesOnly:false,
   checklistGroupInv:null, checklistGroupSelection: new Set(),
   newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
   selectMode:false, selectedInv: new Set(),
@@ -857,20 +859,28 @@ function isChecklistSatisfied(checklist){
   return checklist.every(c=> c.checked || (c.altGroup && groupSatisfied[c.altGroup]));
 }
 
-function isItemIncomplete(i){
-  if(!i.bez || !i.bez.trim()) return true;
-  if(!i.hersteller || !i.hersteller.trim()) return true;
-  if(!i.modell || !i.modell.trim()) return true;
-  if(!i.standort || !i.standort.trim()) return true;
-  if(!i.miete) return true;
-  if(!i.gewicht) return true;
-  if(i.einkaufspreis===null || i.einkaufspreis===undefined || i.einkaufspreis==='') return true;
+// The field labels behind an item's "incomplete" flag, in the same order
+// isItemIncomplete checks them -- shown to the user so "incomplete" is
+// never a mystery.
+function incompleteFields(i){
+  const missing = [];
+  if(!i.bez || !i.bez.trim()) missing.push(t('field_bez'));
+  if(!i.hersteller || !i.hersteller.trim()) missing.push(t('field_hersteller'));
+  if(!i.modell || !i.modell.trim()) missing.push(t('field_modelltyp'));
+  if(!i.standort || !i.standort.trim()) missing.push(t('field_standort'));
+  if(!i.miete) missing.push(t('field_miete_eur'));
+  if(!i.gewicht) missing.push(t('field_gewicht'));
+  if(i.einkaufspreis===null || i.einkaufspreis===undefined || i.einkaufspreis==='') missing.push(t('field_einkaufspreis'));
   if(i.pruef){
-    if(!i.letzte) return true;
-    if(!i.intervall) return true;
-    if(!isChecklistSatisfied(i.checklist)) return true;
+    if(!i.letzte) missing.push(t('field_letzte'));
+    if(!i.intervall) missing.push(t('field_intervall'));
+    if(!isChecklistSatisfied(i.checklist)) missing.push(t('field_checklist'));
   }
-  return false;
+  return missing;
+}
+
+function isItemIncomplete(i){
+  return incompleteFields(i).length > 0;
 }
 
 function itemWeight(i){ return i.gewicht || 0; }
@@ -894,15 +904,17 @@ function caseAvailability(i){
     : { label: t('status_partial'), cls: 'pill-warn' };
 }
 
-function itemCard(i, showPruef, selectable){
+function itemCard(i, showPruef, selectable, showIncomplete){
   const ps = pruefStatus(i);
-  const cls = showPruef && ps ? ps : '';
+  const missing = showIncomplete ? incompleteFields(i) : [];
+  const cls = showPruef && ps ? ps : (missing.length ? 'crit' : '');
   const caseItem = i.parent ? byInv(i.parent) : null;
   const contentCount = childCountOf(i.inv);
   const metaBits = [catPathNames(i.cat), esc(i.standort)];
   if(i.tag) metaBits.push(esc(tagLabel(i.tag)));
   if(caseItem) metaBits.push(t('in_case_short',{inv:caseItem.inv}));
-  const metaLine = showPruef && ps ? pruefLabel(i) : metaBits.join(' · ');
+  const metaClass = missing.length ? 'ic-meta ic-meta-warn' : 'ic-meta';
+  const metaLine = missing.length ? missing.join(' · ') : (showPruef && ps ? pruefLabel(i) : metaBits.join(' · '));
   const pill = showPruef && ps
     ? `<span class="pill pill-${ps}">${pruefStatusLabel(ps)}</span>`
     : contentCount>0
@@ -921,7 +933,7 @@ function itemCard(i, showPruef, selectable){
         <div class="ic-body">
           <span class="inv-num mono">${i.inv}</span>
           <span class="ic-title">${esc(i.bez)}</span>
-          <span class="ic-meta">${metaLine}</span>
+          <span class="${metaClass}">${metaLine}</span>
         </div>
         ${pill}
       </button>`;
@@ -934,7 +946,7 @@ function itemCard(i, showPruef, selectable){
       <button class="ic-body" style="background:none;border:none;padding:0;text-align:left;cursor:pointer;" data-action="toggle-select-item" data-inv="${i.inv}">
         <span class="inv-num mono">${i.inv}</span>
         <span class="ic-title">${esc(i.bez)}</span>
-        <span class="ic-meta">${metaLine}</span>
+        <span class="${metaClass}">${metaLine}</span>
       </button>
     </div>`;
 }
@@ -1007,11 +1019,44 @@ function screenInventar(){
   const incompleteCount = state.inventar.filter(isItemIncomplete).length;
   const selectToggle = `
     <div class="tool-row">
-      <button class="tool-btn" data-action="toggle-select-mode">${ui.selectMode? t('btn_cancel_select') : t('btn_select_items')}</button>
-      <button class="tool-btn" data-action="open-flightcases">${ICONS.crate}${t('nav_flightcases')}</button>
+      ${ui.showCasesOnly ? '' : `<button class="tool-btn" data-action="toggle-select-mode">${ui.selectMode? t('btn_cancel_select') : t('btn_select_items')}</button>`}
+      <button class="tool-btn ${ui.showCasesOnly?'active':''}" data-action="toggle-cases-filter">${ICONS.crate}${t('nav_flightcases')}</button>
       <button class="tool-btn ${ui.showIncompleteOnly?'active':''}" data-action="toggle-incomplete-filter">${t('btn_incomplete')}${incompleteCount? ` (${incompleteCount})` : ''}</button>
     </div>
   `;
+
+  if(ui.showCasesOnly){
+    const casesRoot = casesRootCat();
+    const ids = casesRoot ? descendantCatIds(casesRoot.id) : [];
+    const cases = state.inventar.filter(i=>{
+      if(!ids.includes(i.cat)) return false;
+      if(ui.fStatus && i.status!==ui.fStatus) return false;
+      if(q && ![i.inv,i.bez,i.hersteller,i.modell,i.serien,i.standort].join(' ').toLowerCase().includes(q)) return false;
+      return true;
+    }).sort((a,b)=>a.inv.localeCompare(b.inv));
+    return `
+      <h1 class="page-title">${t('title_inventar')}</h1>
+      <p class="page-sub">${t('flightcases_p')}</p>
+      ${searchBar}
+      ${selectToggle}
+      ${cases.length? cases.map(c=>{
+        const children = state.inventar.filter(x=>x.parent===c.inv);
+        const contentsText = children.length ? children.map(x=>x.bez).join(', ') : t('contains_empty');
+        return `
+        <div class="case-card">
+          <button type="button" class="case-head" data-action="open-item" data-inv="${c.inv}">
+            <span class="inv-num mono">${c.inv}</span>
+            <span class="ic-title">${esc(c.bez)}</span>
+          </button>
+          <div class="field">
+            <input type="text" data-action="edit-item" data-field="nickname" data-inv="${c.inv}" value="${esc(c.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
+          </div>
+          <span class="case-contents">${esc(contentsText)}</span>
+          <span class="case-weight">${t('weight_total_hint',{own:itemWeight(c), contents:containedWeight(c), total:totalWeightWithContents(c)})}</span>
+        </div>`;
+      }).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_flightcases')}</p></div>`}
+    `;
+  }
 
   if(q || ui.showIncompleteOnly){
     const items = state.inventar.filter(i=>{
@@ -1026,7 +1071,7 @@ function screenInventar(){
       ${searchBar}
       ${selectToggle}
       <div class="card-list">
-        ${items.length? items.map(i=>itemCard(i,false,ui.selectMode)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
+        ${items.length? items.map(i=>itemCard(i,false,ui.selectMode,ui.showIncompleteOnly)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
       </div>
       ${selectActionBar()}
     `;
@@ -1473,7 +1518,6 @@ function sheetOverlay(){
   else if(s.type==='timeline'){ title = t('sheet_timeline'); body = timelineSheet(); }
   else if(s.type==='stats'){ title = t('sheet_stats'); body = statsSheet(); }
   else if(s.type==='data-explorer'){ title = t('sheet_data_explorer'); body = dataExplorerSheet(); }
-  else if(s.type==='flightcases'){ title = t('nav_flightcases'); body = flightcasesSheet(); }
   else if(s.type==='bulk-edit'){ title = t('sheet_bulk_edit'); body = bulkEditSheet(); }
   else if(s.type==='test-types'){ title = t('nav_test_types'); body = testTypesSheet(); }
   else if(s.type==='secret-settings'){ title = t('sheet_secret_settings'); body = secretSettingsSheet(); }
@@ -1546,12 +1590,20 @@ function checklistListMarkup(i, groupMode){
 function itemDetailSheet(i){
   const ps = pruefStatus(i);
   const children = state.inventar.filter(x=>x.parent===i.inv);
+  const missing = incompleteFields(i);
   return `
     <div class="field">
       <label>${t('field_bez')}</label>
       <input type="text" data-action="edit-item" data-field="bez" data-inv="${i.inv}" value="${esc(i.bez)}" />
     </div>
     <span class="pill ${statusPillClass(i.status)}" style="margin-bottom:14px;display:inline-block;">${statusLabel(i.status)}</span>
+
+    ${missing.length ? `
+      <div class="incomplete-banner">
+        <span class="incomplete-banner-icon">!</span>
+        <span class="incomplete-banner-text"><strong>${t('incomplete_banner_title')}</strong> ${missing.join(' · ')}</span>
+      </div>
+    ` : ''}
 
     ${isCaseCat(i.cat) ? `
       <div class="field">
@@ -2407,31 +2459,6 @@ function bulkEditSheet(){
   `;
 }
 
-function flightcasesSheet(){
-  const casesRoot = casesRootCat();
-  const ids = casesRoot ? descendantCatIds(casesRoot.id) : [];
-  const cases = state.inventar.filter(i=>ids.includes(i.cat)).sort((a,b)=>a.inv.localeCompare(b.inv));
-  return `
-    <p class="field-hint" style="margin-bottom:12px;">${t('flightcases_p')}</p>
-    ${cases.length? cases.map(c=>{
-      const children = state.inventar.filter(x=>x.parent===c.inv);
-      const contentsText = children.length ? children.map(x=>x.bez).join(', ') : t('contains_empty');
-      return `
-      <div class="case-card">
-        <button type="button" class="case-head" data-action="open-item" data-inv="${c.inv}">
-          <span class="inv-num mono">${c.inv}</span>
-          <span class="ic-title">${esc(c.bez)}</span>
-        </button>
-        <div class="field">
-          <input type="text" data-action="edit-item" data-field="nickname" data-inv="${c.inv}" value="${esc(c.nickname||'')}" placeholder="${t('nickname_placeholder')}" />
-        </div>
-        <span class="case-contents">${esc(contentsText)}</span>
-        <span class="case-weight">${t('weight_total_hint',{own:itemWeight(c), contents:containedWeight(c), total:totalWeightWithContents(c)})}</span>
-      </div>`;
-    }).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_flightcases')}</p></div>`}
-  `;
-}
-
 function testTypesSheet(){
   return `
     <p class="field-hint" style="margin-bottom:12px;">${t('test_types_p')}</p>
@@ -3278,6 +3305,11 @@ function onClick(e){
       render(); break;
     case 'toggle-incomplete-filter':
       ui.showIncompleteOnly = !ui.showIncompleteOnly;
+      if(ui.showIncompleteOnly) ui.showCasesOnly = false;
+      render(); break;
+    case 'toggle-cases-filter':
+      ui.showCasesOnly = !ui.showCasesOnly;
+      if(ui.showCasesOnly) ui.showIncompleteOnly = false;
       render(); break;
     case 'toggle-select-item': {
       const inv = t2.dataset.inv;
@@ -3336,8 +3368,6 @@ function onClick(e){
     }
     case 'open-data-explorer':
       pushSheet({type:'data-explorer'}); break;
-    case 'open-flightcases':
-      pushSheet({type:'flightcases'}); break;
     case 'open-test-types':
       pushSheet({type:'test-types'}); break;
     case 'open-tag-detail':
