@@ -225,6 +225,14 @@ const STRINGS = {
     master_pw_p:'Damit loggen sich komplett neue Geräte das erste Mal ein — am besten lang und ungewöhnlich (z. B. eine E-Mail-Adresse als Passwort). Danach dürfen diese Geräte die 4-stellige PIN und Fingerabdruck nutzen.',
     master_pw_save:'Master-Passwort speichern',
     toast_master_pw_saved:'Master-Passwort geändert', toast_master_pw_invalid:'Mindestens 8 Zeichen nötig',
+    alt_pin_title:'Alternative PIN', alt_pin_field:'Alternative 4-stellige PIN',
+    alt_pin_placeholder:'z. B. für einen Entwickler', alt_pin_p:'Eine zweite PIN, die zusätzlich zur normalen funktioniert — z. B. für einen Entwickler, der Zugriff braucht, ohne die eigentliche PIN zu kennen. Leer lassen, um sie zu entfernen.',
+    alt_master_pw_title:'Alternatives Master-Passwort', alt_master_pw_field:'Neues alternatives Master-Passwort',
+    alt_master_pw_placeholder:'mindestens 8 Zeichen', alt_master_pw_remove:'Entfernen',
+    alt_master_pw_p:'Ein zweites Master-Passwort, das zusätzlich zum normalen funktioniert — z. B. für Wartungszugriff durch Dritte.',
+    save:'Speichern',
+    toast_alt_pin_saved:'Alternative PIN gespeichert', toast_alt_pin_removed:'Alternative PIN entfernt',
+    toast_alt_master_pw_saved:'Alternatives Master-Passwort geändert', toast_alt_master_pw_removed:'Alternatives Master-Passwort entfernt',
     biometric_title:'Fingerabdruck', biometric_p:'Dieses Gerät per Fingerabdruck/Face ID statt PIN entsperren.',
     biometric_enabled:'Auf diesem Gerät eingerichtet.', biometric_remove:'Entfernen', biometric_enroll:'Fingerabdruck aktivieren',
     toast_biometric_enrolled:'Fingerabdruck eingerichtet', toast_biometric_failed:'Fingerabdruck-Einrichtung fehlgeschlagen',
@@ -435,6 +443,14 @@ const STRINGS = {
     master_pw_p:'Brand-new devices log in with this the first time — best kept long and unusual (e.g. an email address as a password). After that, those devices may use the 4-digit PIN and fingerprint.',
     master_pw_save:'Save master password',
     toast_master_pw_saved:'Master password changed', toast_master_pw_invalid:'At least 8 characters required',
+    alt_pin_title:'Alternative PIN', alt_pin_field:'Alternative 4-digit PIN',
+    alt_pin_placeholder:'e.g. for a developer', alt_pin_p:'A second PIN that works alongside the normal one — e.g. for a developer who needs access without knowing the real PIN. Leave blank to remove it.',
+    alt_master_pw_title:'Alternative master password', alt_master_pw_field:'New alternative master password',
+    alt_master_pw_placeholder:'at least 8 characters', alt_master_pw_remove:'Remove',
+    alt_master_pw_p:'A second master password that works alongside the normal one — e.g. for maintenance access by a third party.',
+    save:'Save',
+    toast_alt_pin_saved:'Alternative PIN saved', toast_alt_pin_removed:'Alternative PIN removed',
+    toast_alt_master_pw_saved:'Alternative master password changed', toast_alt_master_pw_removed:'Alternative master password removed',
     biometric_title:'Fingerprint', biometric_p:'Unlock this device with fingerprint/Face ID instead of the PIN.',
     biometric_enabled:'Set up on this device.', biometric_remove:'Remove', biometric_enroll:'Enable fingerprint',
     toast_biometric_enrolled:'Fingerprint set up', toast_biometric_failed:'Fingerprint setup failed',
@@ -2588,6 +2604,27 @@ function secretSettingsSheet(){
       <label>${t('field_username')}</label>
       <input type="text" data-action="edit-setting" data-field="userName" value="${esc(state.userName||'')}" placeholder="${t('username_placeholder')}" maxlength="60" />
     </div>
+
+    <div class="divider"></div>
+    <h3 style="margin-bottom:4px;">${t('alt_pin_title')}</h3>
+    <p class="field-hint" style="margin-bottom:10px;">${t('alt_pin_p')}</p>
+    <div class="field">
+      <label>${t('alt_pin_field')}</label>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" class="mono" value="${esc(state.altPin||'')}" data-action="set-alt-pin" placeholder="${t('alt_pin_placeholder')}" />
+    </div>
+
+    <div class="divider"></div>
+    <h3 style="margin-bottom:4px;">${t('alt_master_pw_title')}</h3>
+    <p class="field-hint" style="margin-bottom:10px;">${t('alt_master_pw_p')}</p>
+    <div class="field">
+      <label>${t('alt_master_pw_field')}</label>
+      <input type="password" id="alt-master-password" placeholder="${state.hasAltMasterPassword? '••••••••' : t('alt_master_pw_placeholder')}" minlength="8" autocomplete="off" />
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" data-action="set-alt-master-password">${t('save')}</button>
+      ${state.hasAltMasterPassword? `<button class="btn btn-secondary" data-action="remove-alt-master-password" style="color:var(--status-crit);">${t('alt_master_pw_remove')}</button>` : ''}
+    </div>
+
     <div class="divider"></div>
     <p class="field-hint">Made by Martin Weiner, 08. 2026</p>
   `;
@@ -3452,6 +3489,20 @@ function onClick(e){
         .catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
+    case 'set-alt-master-password': {
+      const inp = document.getElementById('alt-master-password');
+      const value = inp ? inp.value : '';
+      if(value.length < 8){ showToast(t('toast_master_pw_invalid')); break; }
+      api('PATCH', '/api/settings', {altMasterPassword: value})
+        .then(()=>{ if(inp) inp.value=''; state.hasAltMasterPassword = true; showToast(t('toast_alt_master_pw_saved')); render(); })
+        .catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'remove-alt-master-password':
+      api('PATCH', '/api/settings', {removeAltMasterPassword: true})
+        .then(()=>{ state.hasAltMasterPassword = false; showToast(t('toast_alt_master_pw_removed')); render(); })
+        .catch(()=>showToast(t('toast_sync_failed')));
+      break;
     case 'save-github-backup-config': {
       const repoInp = document.getElementById('github-backup-repo');
       const tokenInp = document.getElementById('github-backup-token');
@@ -3692,6 +3743,15 @@ function onChange(e){
     state.pin = value;
     api('PATCH', '/api/settings', {pin: value})
       .then(()=>showToast(t('toast_pin_saved')))
+      .catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='set-alt-pin'){
+    const value = t2.value.trim();
+    if(value && !/^\d{4}$/.test(value)){ showToast(t('toast_pin_invalid')); render(); return; }
+    state.altPin = value;
+    api('PATCH', '/api/settings', {altPin: value})
+      .then(()=>showToast(value? t('toast_alt_pin_saved') : t('toast_alt_pin_removed')))
       .catch(()=>showToast(t('toast_sync_failed')));
     return;
   }

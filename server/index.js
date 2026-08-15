@@ -97,6 +97,17 @@ function getMasterPasswordHash() {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('masterPasswordHash');
   return row ? row.value : null;
 }
+// A secondary PIN/master password (set up in the secret settings menu) so a
+// second person -- e.g. a dev doing maintenance -- can get in without ever
+// knowing or sharing the "real" owner credentials. Either one unlocks.
+function getAltPin() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('altPin');
+  return row && row.value ? row.value : null;
+}
+function getAltMasterPasswordHash() {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('altMasterPasswordHash');
+  return row ? row.value : null;
+}
 function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? row.value : '';
@@ -426,7 +437,10 @@ app.post('/api/login', (req, res) => {
   setTimeout(() => {
     if (typeof body.password === 'string') {
       const hash = getMasterPasswordHash();
-      if (!hash || !bcrypt.compareSync(body.password, hash)) {
+      const altHash = getAltMasterPasswordHash();
+      const okPrimary = hash && bcrypt.compareSync(body.password, hash);
+      const okAlt = altHash && bcrypt.compareSync(body.password, altHash);
+      if (!okPrimary && !okAlt) {
         recordAuthFailure();
         return res.status(401).json({ error: 'wrong password' });
       }
@@ -439,7 +453,8 @@ app.post('/api/login', (req, res) => {
     if (typeof body.pin === 'string') {
       const device = trustedDeviceFor(req);
       if (!device) return res.status(403).json({ error: 'device not trusted' });
-      if (body.pin !== getPin()) {
+      const altPin = getAltPin();
+      if (body.pin !== getPin() && (!altPin || body.pin !== altPin)) {
         recordAuthFailure();
         return res.status(401).json({ error: 'wrong pin' });
       }
@@ -645,6 +660,8 @@ function getFullState(req) {
   let casesRootCatId = '';
   let githubBackupRepo = '';
   let githubBackupConfigured = false;
+  let altPin = '';
+  let hasAltMasterPassword = false;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
@@ -652,6 +669,8 @@ function getFullState(req) {
     else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
     else if (r.key === 'githubBackupRepo') githubBackupRepo = r.value;
     else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
+    else if (r.key === 'altPin') altPin = r.value;
+    else if (r.key === 'altMasterPasswordHash') { hasAltMasterPassword = !!r.value; /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
@@ -662,7 +681,7 @@ function getFullState(req) {
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
   const currentDevice = trustedDeviceFor(req);
   const trustedDevices = db.prepare('SELECT * FROM trusted_devices ORDER BY last_seen_at DESC').all().map(r => trustedDeviceRow(r, currentDevice && currentDevice.id));
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices, githubBackupRepo, githubBackupConfigured };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword };
 }
 
 app.get('/api/state', (req, res) => {
@@ -882,6 +901,19 @@ app.patch('/api/settings', (req, res) => {
   if (req.body.githubBackupToken !== undefined) {
     upsert.run('githubBackupToken', String(req.body.githubBackupToken).trim());
   }
+  if (req.body.altPin !== undefined) {
+    const v = String(req.body.altPin).trim();
+    if (v && !/^\d{4}$/.test(v)) return res.status(400).json({ error: 'alt pin must be exactly 4 digits' });
+    upsert.run('altPin', v);
+  }
+  if (req.body.removeAltMasterPassword) {
+    db.prepare('DELETE FROM settings WHERE key = ?').run('altMasterPasswordHash');
+  }
+  if (req.body.altMasterPassword !== undefined) {
+    const pw = String(req.body.altMasterPassword);
+    if (pw.length < 8) return res.status(400).json({ error: 'alt master password must be at least 8 characters' });
+    upsert.run('altMasterPasswordHash', bcrypt.hashSync(pw, 10));
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
@@ -889,6 +921,8 @@ app.patch('/api/settings', (req, res) => {
   let casesRootCatId = '';
   let githubBackupRepo = '';
   let githubBackupConfigured = false;
+  let altPin = '';
+  let hasAltMasterPassword = false;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
@@ -896,9 +930,11 @@ app.patch('/api/settings', (req, res) => {
     else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
     else if (r.key === 'githubBackupRepo') githubBackupRepo = r.value;
     else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
+    else if (r.key === 'altPin') altPin = r.value;
+    else if (r.key === 'altMasterPasswordHash') { hasAltMasterPassword = !!r.value; /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
-  res.json({ ...schwellen, pin, userName, casesRootCatId, githubBackupRepo, githubBackupConfigured });
+  res.json({ ...schwellen, pin, userName, casesRootCatId, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword });
 });
 
 /* ---- inventar ---- */
