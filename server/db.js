@@ -110,10 +110,22 @@ db.exec(`
     cat TEXT NOT NULL REFERENCES categories(id)
   );
 
-  CREATE TABLE IF NOT EXISTS test_types (
+  -- A group bundles 2+ test types as alternatives to each other (e.g.
+  -- "DGUV V3" or "VDE 0701-0702" -- either one satisfies the same
+  -- requirement). Purely organizational: it just clusters those test
+  -- types together when picking one for an item, it never restricts
+  -- which (or how many) get added to an item's checklist.
+  CREATE TABLE IF NOT EXISTS test_type_groups (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     sort_order INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS test_types (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    group_id TEXT REFERENCES test_type_groups(id) ON DELETE SET NULL
   );
 
   CREATE TABLE IF NOT EXISTS test_type_items (
@@ -200,6 +212,7 @@ ensureColumn('inventar', 'intervall', 'intervall INTEGER');
 ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
 ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
+ensureColumn('test_types', 'group_id', 'group_id TEXT REFERENCES test_type_groups(id) ON DELETE SET NULL');
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
 
@@ -387,11 +400,17 @@ function seedIfEmpty() {
   });
   tx();
 
-  const insertTestType = db.prepare('INSERT INTO test_types (id, name, sort_order) VALUES (@id, @name, @sort_order)');
+  const insertTestTypeGroup = db.prepare('INSERT INTO test_type_groups (id, name, sort_order) VALUES (@id, @name, @sort_order)');
+  insertTestTypeGroup.run({ id: 'ttg-elektro-beweglich', name: 'Elektroprüfung (ortsveränderliche Geräte)', sort_order: 0 });
+
+  const insertTestType = db.prepare('INSERT INTO test_types (id, name, sort_order, group_id) VALUES (@id, @name, @sort_order, @group_id)');
   const insertTestItem = db.prepare('INSERT INTO test_type_items (id, test_type_id, text, sort_order) VALUES (@id, @test_type_id, @text, @sort_order)');
   const testTypes = [
     {
-      id: 'tt-dguv-v3-orts-veraenderlich', name: 'DGUV V3 (ortsveränderliche Geräte)', items: [
+      // Alternatives for the same requirement (ortsveränderliche Geräte) --
+      // either standard is acceptable, never both -- so they're bundled
+      // into the "Elektroprüfung" group above as a working example.
+      id: 'tt-dguv-v3-orts-veraenderlich', groupId: 'ttg-elektro-beweglich', name: 'DGUV V3 (ortsveränderliche Geräte)', items: [
         'Sichtprüfung auf äußere Beschädigungen (Gehäuse, Kabel, Stecker)',
         'Prüfung der Kennzeichnung/Beschriftung',
         'Schutzleiterwiderstand messen (Schutzklasse I)',
@@ -414,7 +433,7 @@ function seedIfEmpty() {
       ],
     },
     {
-      id: 'tt-vde-0701-0702', name: 'VDE 0701-0702', items: [
+      id: 'tt-vde-0701-0702', groupId: 'ttg-elektro-beweglich', name: 'VDE 0701-0702', items: [
         'Sichtprüfung auf Beschädigungen',
         'Schutzleiterwiderstand messen',
         'Isolationswiderstand messen',
@@ -464,7 +483,7 @@ function seedIfEmpty() {
   ];
   const insertManyTestTypes = db.transaction(() => {
     testTypes.forEach((tt, ttIdx) => {
-      insertTestType.run({ id: tt.id, name: tt.name, sort_order: ttIdx });
+      insertTestType.run({ id: tt.id, name: tt.name, sort_order: ttIdx, group_id: tt.groupId || null });
       tt.items.forEach((text, itemIdx) => {
         insertTestItem.run({ id: `${tt.id}-${itemIdx}`, test_type_id: tt.id, text, sort_order: itemIdx });
       });

@@ -548,6 +548,15 @@ button{cursor:pointer;}
 .cat-edit-row input.code{width:48px;flex:none;text-align:center;padding:7px 4px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:.8rem;}
 .cat-edit-row input.name{flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-size:.85rem;min-width:0;}
 .cat-edit-children{margin-left:14px;border-left:1px solid var(--border);padding-left:8px;margin-top:2px;margin-bottom:4px;}
+.test-type-group-block{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;
+  padding:12px 12px 6px;margin-bottom:12px;
+}
+.test-type-group-picker{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+  padding:8px 10px;margin-bottom:8px;
+}
+.test-type-group-picker-label{display:block;font-size:.72rem;font-weight:600;color:var(--text-faint);margin-bottom:4px;}
 .cat-edit-children > .add-link{margin-left:0;}
 .cat-move-btns{display:flex;flex-direction:column;gap:2px;flex:none;}
 .cat-move-btn{
