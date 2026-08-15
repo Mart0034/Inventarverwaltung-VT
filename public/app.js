@@ -30,6 +30,7 @@ const STRINGS = {
     start_welcome:'Willkommen zurück',
     sheet_secret_settings:'Geheimes Menü', secret_settings_p:'Nur für Eingeweihte.',
     field_username:'Name', username_placeholder:'z. B. Martin',
+    field_appname:'App-Name', appname_placeholder:'Fundus', appname_p:'Erscheint oben neben dem Logo, z. B. „Fundus - Inventar".',
     start_sub:'{date} · {n} Artikel im Fundus',
     stat_total:'Gesamt', stat_available:'Verfügbar', stat_rented:'Vermietet', stat_due:'Prüfung fällig',
     due_inspections:'Fällige Prüfungen', view_all:'Alle ansehen',
@@ -252,6 +253,7 @@ const STRINGS = {
     start_welcome:'Welcome back',
     sheet_secret_settings:'Secret menu', secret_settings_p:'For insiders only.',
     field_username:'Name', username_placeholder:'e.g. Martin',
+    field_appname:'App name', appname_placeholder:'Fundus', appname_p:'Shows up top next to the logo, e.g. "Fundus - Inventory".',
     start_sub:'{date} · {n} items in Fundus',
     stat_total:'Total', stat_available:'Available', stat_rented:'Rented', stat_due:'Checks due',
     due_inspections:'Upcoming inspections', view_all:'View all',
@@ -802,7 +804,7 @@ function topbar(){
     <button class="brand" data-action="tab" data-tab="start" aria-label="Start">
       <img class="brand-mark" src="/icons/brand-mark.png" alt="">
     </button>
-    <div class="topbar-title">${screenTitle()}</div>
+    <div class="topbar-title">${esc(state.appName||'Fundus')} - ${screenTitle()}</div>
     <div class="topbar-actions">
       <button class="icon-btn" data-action="reload-app" aria-label="${t('btn_reload')}">${ICONS.reload}</button>
       <button class="icon-btn" data-action="lock-now" aria-label="${t('pin_lock_now')}">${ICONS.logout}</button>
@@ -822,7 +824,7 @@ function sidebar(){
   <nav class="sidebar">
     <div class="sidebar-brand-row">
       <button class="sidebar-brand" data-action="tab" data-tab="start" aria-label="Start">
-        <img class="brand-mark" src="/icons/brand-mark.png" alt=""><span class="sidebar-brand-name">Fundus</span>
+        <img class="brand-mark" src="/icons/brand-mark.png" alt=""><span class="sidebar-brand-name">${esc(state.appName||'Fundus')}</span>
       </button>
       <div class="topbar-actions">
         <button class="icon-btn" data-action="reload-app" aria-label="${t('btn_reload')}">${ICONS.reload}</button>
@@ -2619,6 +2621,11 @@ function secretSettingsSheet(){
     <div class="field">
       <label>${t('field_username')}</label>
       <input type="text" data-action="edit-setting" data-field="userName" value="${esc(state.userName||'')}" placeholder="${t('username_placeholder')}" maxlength="60" />
+    </div>
+    <div class="field">
+      <label>${t('field_appname')}</label>
+      <input type="text" data-action="edit-setting" data-field="appName" value="${esc(state.appName||'')}" placeholder="${t('appname_placeholder')}" maxlength="40" />
+      <span class="field-hint">${t('appname_p')}</span>
     </div>
 
     <div class="divider"></div>
