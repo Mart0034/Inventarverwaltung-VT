@@ -97,6 +97,10 @@ function getMasterPasswordHash() {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('masterPasswordHash');
   return row ? row.value : null;
 }
+function getSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? row.value : '';
+}
 
 function parseCookies(req) {
   const header = req.headers.cookie;
@@ -129,12 +133,44 @@ function touchDevice(id) {
 }
 // A short, best-effort label so a "trusted devices" list in Settings isn't
 // just a wall of random IDs. Not meant to be precise -- just recognizable.
+// Pulls whatever extra detail the User-Agent string still exposes (Chrome's
+// UA reduction means desktop OS versions are mostly gone, but Android UAs
+// still tend to include the device model, and browser major versions are
+// nearly always present) since that's the only signal available without
+// wiring up Client Hints. A nickname (set by the user) is the real fix for
+// telling two same-model phones apart.
 function labelFromUserAgent(ua) {
   ua = ua || '';
-  const os = /iphone/i.test(ua) ? 'iPhone' : /ipad/i.test(ua) ? 'iPad' : /android/i.test(ua) ? 'Android'
-    : /mac os/i.test(ua) ? 'Mac' : /windows/i.test(ua) ? 'Windows' : /linux/i.test(ua) ? 'Linux' : '';
-  const browser = /edg\//i.test(ua) ? 'Edge' : /chrome\//i.test(ua) ? 'Chrome' : /firefox\//i.test(ua) ? 'Firefox'
-    : /safari\//i.test(ua) ? 'Safari' : '';
+  let os = '';
+  if (/iphone/i.test(ua)) {
+    const v = /OS (\d+[_.]\d+)/i.exec(ua);
+    os = 'iPhone' + (v ? ` (iOS ${v[1].replace(/_/g, '.')})` : '');
+  } else if (/ipad/i.test(ua)) {
+    const v = /OS (\d+[_.]\d+)/i.exec(ua);
+    os = 'iPad' + (v ? ` (iPadOS ${v[1].replace(/_/g, '.')})` : '');
+  } else if (/android/i.test(ua)) {
+    const v = /Android (\d+(?:\.\d+)?)/i.exec(ua);
+    const m = /Android\s[\d.]+;\s*([^;)]+?)(?:\sBuild\/|\))/i.exec(ua);
+    const model = m ? m[1].trim() : '';
+    os = [model, v ? `(Android ${v[1]})` : 'Android'].filter(Boolean).join(' ');
+  } else if (/windows nt/i.test(ua)) {
+    const v = /Windows NT (\d+\.\d+)/i.exec(ua);
+    const names = { '10.0': 'Windows 10/11', '6.3': 'Windows 8.1', '6.2': 'Windows 8', '6.1': 'Windows 7' };
+    os = v ? (names[v[1]] || `Windows NT ${v[1]}`) : 'Windows';
+  } else if (/mac os x/i.test(ua)) {
+    const v = /Mac OS X (\d+[_.]\d+)/i.exec(ua);
+    os = 'Mac' + (v ? ` (macOS ${v[1].replace(/_/g, '.')})` : '');
+  } else if (/linux/i.test(ua)) {
+    os = 'Linux';
+  }
+  let browser = '';
+  let m;
+  if (m = /edg\/([\d.]+)/i.exec(ua)) browser = 'Edge ' + m[1].split('.')[0];
+  else if (m = /opr\/([\d.]+)/i.exec(ua)) browser = 'Opera ' + m[1].split('.')[0];
+  else if (m = /chrome\/([\d.]+)/i.exec(ua)) browser = 'Chrome ' + m[1].split('.')[0];
+  else if (m = /firefox\/([\d.]+)/i.exec(ua)) browser = 'Firefox ' + m[1].split('.')[0];
+  else if (m = /version\/([\d.]+).*safari/i.exec(ua)) browser = 'Safari ' + m[1].split('.')[0];
+  else if (/safari/i.test(ua)) browser = 'Safari';
   return [browser, os].filter(Boolean).join(' · ') || 'Gerät';
 }
 function mintTrustedDevice(req, res) {
@@ -523,7 +559,7 @@ app.post('/api/webauthn/login/verify', async (req, res) => {
 
 function trustedDeviceRow(row, currentDeviceId) {
   const hasBiometric = !!db.prepare('SELECT 1 FROM webauthn_credentials WHERE device_id = ?').get(row.id);
-  return { id: row.id, label: row.label, createdAt: row.created_at, lastSeenAt: row.last_seen_at, hasBiometric, isThisDevice: row.id === currentDeviceId };
+  return { id: row.id, label: row.label, nickname: row.nickname || '', createdAt: row.created_at, lastSeenAt: row.last_seen_at, hasBiometric, isThisDevice: row.id === currentDeviceId };
 }
 
 app.delete('/api/webauthn/credentials', (req, res) => {
@@ -531,6 +567,16 @@ app.delete('/api/webauthn/credentials', (req, res) => {
   if (!device) return res.status(400).json({ error: 'no trusted device' });
   db.prepare('DELETE FROM webauthn_credentials WHERE device_id = ?').run(device.id);
   res.status(204).end();
+});
+
+app.patch('/api/trusted-devices/:id', (req, res) => {
+  const row = db.prepare('SELECT * FROM trusted_devices WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  if (req.body.nickname !== undefined) {
+    db.prepare('UPDATE trusted_devices SET nickname = ? WHERE id = ?').run(String(req.body.nickname).slice(0, 60), row.id);
+  }
+  const currentDevice = trustedDeviceFor(req);
+  res.json(trustedDeviceRow(db.prepare('SELECT * FROM trusted_devices WHERE id = ?').get(row.id), currentDevice && currentDevice.id));
 });
 
 app.delete('/api/trusted-devices/:id', (req, res) => {
@@ -597,11 +643,15 @@ function getFullState(req) {
   let pin = '1234';
   let userName = '';
   let casesRootCatId = '';
+  let githubBackupRepo = '';
+  let githubBackupConfigured = false;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
     else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
     else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
+    else if (r.key === 'githubBackupRepo') githubBackupRepo = r.value;
+    else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
@@ -612,7 +662,7 @@ function getFullState(req) {
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
   const currentDevice = trustedDeviceFor(req);
   const trustedDevices = db.prepare('SELECT * FROM trusted_devices ORDER BY last_seen_at DESC').all().map(r => trustedDeviceRow(r, currentDevice && currentDevice.id));
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices, githubBackupRepo, githubBackupConfigured };
 }
 
 app.get('/api/state', (req, res) => {
@@ -633,6 +683,53 @@ app.get('/api/backup', (req, res) => {
   db.pragma('wal_checkpoint(TRUNCATE)');
   const stamp = new Date().toISOString().slice(0, 10);
   res.download(path.join(db.DATA_DIR, 'fundus.db'), `fundus-backup-${stamp}.db`);
+});
+
+// Pushes the database straight into a GitHub repo on demand, instead of
+// waiting on the external cron Action to pull it. Overwrites a single
+// fixed path each time (not one file per day) to keep the repo small --
+// history lives in that file's own git log.
+const GITHUB_BACKUP_PATH = 'backups/fundus.db';
+
+app.post('/api/backup/github', async (req, res) => {
+  const repo = getSetting('githubBackupRepo');
+  const token = getSetting('githubBackupToken');
+  if (!repo || !token) return res.status(400).json({ error: 'GitHub backup not configured' });
+
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'fundus-backup',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  const apiUrl = `https://api.github.com/repos/${repo}/contents/${GITHUB_BACKUP_PATH}`;
+
+  try {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    const content = fs.readFileSync(path.join(db.DATA_DIR, 'fundus.db')).toString('base64');
+
+    let sha;
+    const getRes = await fetch(apiUrl, { headers });
+    if (getRes.ok) {
+      sha = (await getRes.json()).sha;
+    } else if (getRes.status !== 404) {
+      throw new Error(`GitHub lookup failed (${getRes.status})`);
+    }
+
+    const putRes = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `Fundus backup ${new Date().toISOString()}`, content, sha }),
+    });
+    if (!putRes.ok) {
+      const body = await putRes.json().catch(() => ({}));
+      throw new Error(body.message || `GitHub push failed (${putRes.status})`);
+    }
+    const result = await putRes.json();
+    res.json({ ok: true, url: result.content && result.content.html_url });
+  } catch (e) {
+    res.status(502).json({ error: e.message || 'GitHub backup failed' });
+  }
 });
 
 /* ---- audit log ---- */
@@ -779,19 +876,29 @@ app.patch('/api/settings', (req, res) => {
     if (pw.length < 8) return res.status(400).json({ error: 'master password must be at least 8 characters' });
     upsert.run('masterPasswordHash', bcrypt.hashSync(pw, 10));
   }
+  if (req.body.githubBackupRepo !== undefined) {
+    upsert.run('githubBackupRepo', String(req.body.githubBackupRepo).trim());
+  }
+  if (req.body.githubBackupToken !== undefined) {
+    upsert.run('githubBackupToken', String(req.body.githubBackupToken).trim());
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
   let userName = '';
   let casesRootCatId = '';
+  let githubBackupRepo = '';
+  let githubBackupConfigured = false;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
     else if (r.key === 'casesRootCatId') casesRootCatId = r.value;
     else if (r.key === 'masterPasswordHash') { /* never exposed to the client */ }
+    else if (r.key === 'githubBackupRepo') githubBackupRepo = r.value;
+    else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
     else schwellen[r.key] = parseInt(r.value, 10);
   });
-  res.json({ ...schwellen, pin, userName, casesRootCatId });
+  res.json({ ...schwellen, pin, userName, casesRootCatId, githubBackupRepo, githubBackupConfigured });
 });
 
 /* ---- inventar ---- */

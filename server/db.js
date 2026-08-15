@@ -176,6 +176,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS trusted_devices (
     id TEXT PRIMARY KEY,
     label TEXT DEFAULT '',
+    nickname TEXT DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -221,6 +222,7 @@ ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
 ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
 ensureColumn('inventar_checklist', 'alt_group', 'alt_group TEXT');
+ensureColumn('trusted_devices', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');
 ensureColumn('vermietungen', 'archiviert', 'archiviert INTEGER NOT NULL DEFAULT 0');
 ensureColumn('vermietungen', 'notiz', "notiz TEXT DEFAULT ''");

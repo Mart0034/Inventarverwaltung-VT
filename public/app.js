@@ -88,10 +88,18 @@ const STRINGS = {
     data_p:'Die Daten liegen in einer Datenbank auf dem eigenen Server, erreichbar über eine gesicherte HTTPS-Verbindung und durch eine PIN geschützt (siehe „Zugangs-PIN" unten).',
     backup_title:'Datensicherung',
     backup_p:'Tägliches automatisches Backup in ein privates GitHub-Repository, eingerichtet über eine geplante GitHub Action. Dieser Schlüssel schützt den Backup-Zugriff — nur zusammen mit der Action einrichten, nicht öffentlich teilen.',
-    btn_backup_now:'Jetzt sichern',
+    btn_download_backup:'Backup herunterladen',
     backup_now_hint:'Lädt sofort eine Kopie der Datenbank herunter — z. B. direkt vor einem Server-Update.',
     backup_token_label:'Backup-Schlüssel',
     backup_url_label:'Backup-Adresse',
+    btn_backup_cloud:'In die Cloud sichern',
+    backup_cloud_title:'Cloud-Backup (GitHub)',
+    backup_cloud_p:'Sichert die Datenbank direkt in ein GitHub-Repository — unabhängig von der geplanten Action oben, sofort per Knopfdruck.',
+    backup_cloud_repo_label:'Repository', backup_cloud_repo_placeholder:'z. B. meinuser/fundus-backups',
+    backup_cloud_token_label:'GitHub-Zugriffstoken', backup_cloud_token_placeholder:'ghp_… (mit Schreibrechten)',
+    backup_cloud_save:'Speichern', backup_cloud_not_configured:'Repository und Token oben eintragen, um Cloud-Backups zu aktivieren.',
+    toast_backup_cloud_success:'In die Cloud gesichert.', toast_backup_cloud_failed:'Cloud-Backup fehlgeschlagen: {msg}',
+    toast_backup_cloud_saved:'Cloud-Backup-Einstellungen gespeichert.',
     field_bez:'Bezeichnung', field_category:'Kategorie', change:'Ändern',
     field_hersteller:'Hersteller', field_modell:'Modell', field_serien:'Seriennummer', field_miete:'Mietpreis / Tag',
     field_status:'Status', field_standort:'Standort',
@@ -223,6 +231,7 @@ const STRINGS = {
     devices_title:'Vertraute Geräte', devices_p:'Geräte, die sich einmal mit dem Master-Passwort angemeldet haben und seitdem PIN/Fingerabdruck nutzen dürfen.',
     devices_this_device:'dieses Gerät', devices_last_seen:'zuletzt aktiv {date}', devices_has_biometric:'Fingerabdruck aktiv',
     devices_revoke:'Entfernen', devices_empty:'Noch keine vertrauten Geräte.',
+    device_nickname_placeholder:'Spitzname, z. B. „Martins Handy"',
     toast_device_revoked:'Gerät entfernt',
   },
   en: {
@@ -289,10 +298,18 @@ const STRINGS = {
     data_p:'Data lives in a database on your own server, reachable over a secured HTTPS connection and protected by a PIN (see "Access PIN" below).',
     backup_title:'Backups',
     backup_p:'Automatic daily backup to a private GitHub repository, set up via a scheduled GitHub Action. This key protects backup access — set it up together with the Action only, don\'t share it publicly.',
-    btn_backup_now:'Back up now',
+    btn_download_backup:'Download backup',
     backup_now_hint:'Downloads a copy of the database immediately — e.g. right before a server update.',
     backup_token_label:'Backup key',
     backup_url_label:'Backup address',
+    btn_backup_cloud:'Back up to cloud',
+    backup_cloud_title:'Cloud backup (GitHub)',
+    backup_cloud_p:'Pushes the database straight to a GitHub repository — independent of the scheduled Action above, on demand.',
+    backup_cloud_repo_label:'Repository', backup_cloud_repo_placeholder:'e.g. myuser/fundus-backups',
+    backup_cloud_token_label:'GitHub access token', backup_cloud_token_placeholder:'ghp_… (with write access)',
+    backup_cloud_save:'Save', backup_cloud_not_configured:'Enter a repository and token above to enable cloud backups.',
+    toast_backup_cloud_success:'Backed up to the cloud.', toast_backup_cloud_failed:'Cloud backup failed: {msg}',
+    toast_backup_cloud_saved:'Cloud backup settings saved.',
     field_bez:'Name', field_category:'Category', change:'Change',
     field_hersteller:'Manufacturer', field_modell:'Model', field_serien:'Serial number', field_miete:'Rental price / day',
     field_status:'Status', field_standort:'Location',
@@ -424,6 +441,7 @@ const STRINGS = {
     devices_title:'Trusted devices', devices_p:'Devices that logged in once with the master password and may use PIN/fingerprint since.',
     devices_this_device:'this device', devices_last_seen:'last active {date}', devices_has_biometric:'fingerprint active',
     devices_revoke:'Remove', devices_empty:'No trusted devices yet.',
+    device_nickname_placeholder:'Nickname, e.g. "Martin\'s phone"',
     toast_device_revoked:'Device removed',
   }
 };
@@ -1408,18 +1426,21 @@ function screenEinstellungen(){
     <div class="settings-card">
       <h3>${t('devices_title')}</h3>
       <p class="field-hint" style="margin-bottom:10px;">${t('devices_p')}</p>
-      <div class="card-list">
-        ${(state.trustedDevices||[]).map(d=>`
-          <div class="item-card" style="cursor:default;">
-            <div class="ic-body">
-              <span class="ic-title">${esc(d.label)}${d.isThisDevice? ' · '+t('devices_this_device') : ''}</span>
-              <span class="ic-meta">${t('devices_last_seen',{date:fmtDateTime(d.lastSeenAt)})}${d.hasBiometric? ' · '+t('devices_has_biometric') : ''}</span>
-            </div>
+      ${(state.trustedDevices||[]).map(d=>`
+        <div class="case-card">
+          <div class="case-head" style="cursor:default;">
+            <span class="ic-title">${esc(d.label)}${d.isThisDevice? ' · '+t('devices_this_device') : ''}</span>
+          </div>
+          <div class="field">
+            <input type="text" data-action="edit-device-nickname" data-id="${d.id}" value="${esc(d.nickname||'')}" placeholder="${t('device_nickname_placeholder')}" />
+          </div>
+          <span class="case-contents">${t('devices_last_seen',{date:fmtDateTime(d.lastSeenAt)})}${d.hasBiometric? ' · '+t('devices_has_biometric') : ''}</span>
+          <div style="margin-top:8px;">
             <button class="link-btn" data-action="revoke-device" data-id="${d.id}" style="color:var(--status-crit);">${t('devices_revoke')}</button>
           </div>
-        `).join('')}
-        ${!(state.trustedDevices||[]).length? `<p class="field-hint">${t('devices_empty')}</p>` : ''}
-      </div>
+        </div>
+      `).join('')}
+      ${!(state.trustedDevices||[]).length? `<p class="field-hint">${t('devices_empty')}</p>` : ''}
     </div>
 
     <div class="settings-card">
@@ -1442,7 +1463,10 @@ function screenEinstellungen(){
     <div class="settings-card">
       <h3>${t('backup_title')}</h3>
       <p class="field-hint" style="margin-bottom:10px;">${t('backup_p')}</p>
-      <a class="tool-btn" href="/api/backup?token=${encodeURIComponent(state.backupToken||'')}">${t('btn_backup_now')}</a>
+      <div class="tool-row">
+        <a class="tool-btn" href="/api/backup?token=${encodeURIComponent(state.backupToken||'')}">${t('btn_download_backup')}</a>
+        <button class="tool-btn" data-action="backup-to-cloud" ${!state.githubBackupConfigured?'disabled style="opacity:.5;"':''}>${t('btn_backup_cloud')}</button>
+      </div>
       <p class="field-hint" style="margin-top:8px;margin-bottom:10px;">${t('backup_now_hint')}</p>
       <div class="field">
         <label>${t('backup_url_label')}</label>
@@ -1452,6 +1476,21 @@ function screenEinstellungen(){
         <label>${t('backup_token_label')}</label>
         <input type="text" class="mono" readonly value="${esc(state.backupToken||'')}" onclick="this.select()" />
       </div>
+    </div>
+
+    <div class="settings-card">
+      <h3>${t('backup_cloud_title')}</h3>
+      <p class="field-hint" style="margin-bottom:10px;">${t('backup_cloud_p')}</p>
+      <div class="field">
+        <label>${t('backup_cloud_repo_label')}</label>
+        <input type="text" id="github-backup-repo" value="${esc(state.githubBackupRepo||'')}" placeholder="${t('backup_cloud_repo_placeholder')}" />
+      </div>
+      <div class="field">
+        <label>${t('backup_cloud_token_label')}</label>
+        <input type="password" id="github-backup-token" placeholder="${state.githubBackupConfigured? '••••••••' : t('backup_cloud_token_placeholder')}" autocomplete="off" />
+      </div>
+      <button class="btn btn-secondary" data-action="save-github-backup-config">${t('backup_cloud_save')}</button>
+      ${!state.githubBackupConfigured? `<p class="field-hint" style="margin-top:8px;">${t('backup_cloud_not_configured')}</p>` : ''}
     </div>
 
     <div class="settings-card">
@@ -3413,6 +3452,27 @@ function onClick(e){
         .catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
+    case 'save-github-backup-config': {
+      const repoInp = document.getElementById('github-backup-repo');
+      const tokenInp = document.getElementById('github-backup-token');
+      const payload = {githubBackupRepo: repoInp ? repoInp.value.trim() : ''};
+      if(tokenInp && tokenInp.value.trim()) payload.githubBackupToken = tokenInp.value.trim();
+      api('PATCH', '/api/settings', payload)
+        .then(res=>{
+          state.githubBackupRepo = res.githubBackupRepo;
+          state.githubBackupConfigured = res.githubBackupConfigured;
+          if(tokenInp) tokenInp.value = '';
+          showToast(t('toast_backup_cloud_saved'));
+          render();
+        })
+        .catch(()=>showToast(t('toast_sync_failed')));
+      break;
+    }
+    case 'backup-to-cloud':
+      api('POST', '/api/backup/github')
+        .then(()=>showToast(t('toast_backup_cloud_success')))
+        .catch(e=>showToast(t('toast_backup_cloud_failed',{msg:e.message||''})));
+      break;
     case 'enroll-biometric':
       doEnrollBiometric();
       break;
@@ -3533,6 +3593,12 @@ function onChange(e){
     const c = state.customers.find(x=>x.id===t2.dataset.id);
     c[t2.dataset.field] = t2.value;
     api('PATCH', `/api/customers/${c.id}`, {[t2.dataset.field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    return;
+  }
+  if(action==='edit-device-nickname'){
+    const d = (state.trustedDevices||[]).find(x=>x.id===t2.dataset.id);
+    if(d) d.nickname = t2.value;
+    api('PATCH', `/api/trusted-devices/${encodeURIComponent(t2.dataset.id)}`, {nickname: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
     return;
   }
   if(action==='add-bundle-to-rental'){
