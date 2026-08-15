@@ -233,6 +233,10 @@ const STRINGS = {
     save:'Speichern',
     toast_alt_pin_saved:'Alternative PIN gespeichert', toast_alt_pin_removed:'Alternative PIN entfernt',
     toast_alt_master_pw_saved:'Alternatives Master-Passwort geändert', toast_alt_master_pw_removed:'Alternatives Master-Passwort entfernt',
+    motivation_title:'Motivationssprüche', motivation_p:'Ein zufälliger Spruch aus dieser Liste erscheint auf der Startseite unter „Willkommen zurück".',
+    motivation_enable_label:'Motivationsspruch anzeigen',
+    motivation_quotes_label:'Sprüche (einer pro Zeile)', motivation_quotes_placeholder:'Ein Spruch pro Zeile …',
+    motivation_quotes_hint:'Wird beim Verlassen des Feldes automatisch gespeichert.',
     biometric_title:'Fingerabdruck', biometric_p:'Dieses Gerät per Fingerabdruck/Face ID statt PIN entsperren.',
     biometric_enabled:'Auf diesem Gerät eingerichtet.', biometric_remove:'Entfernen', biometric_enroll:'Fingerabdruck aktivieren',
     toast_biometric_enrolled:'Fingerabdruck eingerichtet', toast_biometric_failed:'Fingerabdruck-Einrichtung fehlgeschlagen',
@@ -451,6 +455,10 @@ const STRINGS = {
     save:'Save',
     toast_alt_pin_saved:'Alternative PIN saved', toast_alt_pin_removed:'Alternative PIN removed',
     toast_alt_master_pw_saved:'Alternative master password changed', toast_alt_master_pw_removed:'Alternative master password removed',
+    motivation_title:'Motivational quotes', motivation_p:'A random quote from this list shows on the Start screen under "Welcome back".',
+    motivation_enable_label:'Show motivational quote',
+    motivation_quotes_label:'Quotes (one per line)', motivation_quotes_placeholder:'One quote per line …',
+    motivation_quotes_hint:'Saved automatically when you leave the field.',
     biometric_title:'Fingerprint', biometric_p:'Unlock this device with fingerprint/Face ID instead of the PIN.',
     biometric_enabled:'Set up on this device.', biometric_remove:'Remove', biometric_enroll:'Enable fingerprint',
     toast_biometric_enrolled:'Fingerprint set up', toast_biometric_failed:'Fingerprint setup failed',
@@ -495,6 +503,13 @@ async function loadState(){
     loadError = false;
     if(!ui.expandedCats.size){
       state.categories.filter(c=>c.parent===null).forEach(c=>ui.expandedCats.add(c.id));
+    }
+    // Picked once per page load (not on every re-render or background
+    // resync) so it doesn't flicker to a different line while the user is
+    // just sitting on the Start tab.
+    if(ui.motivationalQuote === undefined){
+      const pool = (state.motivationalQuotes||'').split('\n').map(s=>s.trim()).filter(Boolean);
+      ui.motivationalQuote = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
     }
   } catch(e){
     loadError = true;
@@ -850,6 +865,7 @@ function screenStart(){
   return `
     <h1 class="page-title">${t('start_welcome')}${state.userName? ', '+esc(state.userName) : ''}</h1>
     <p class="page-sub">${t('start_sub',{date:fmtDateLong(TODAY),n:total})}</p>
+    ${state.motivationalQuotesEnabled && ui.motivationalQuote ? `<p class="page-sub motivation-quote">${esc(ui.motivationalQuote)}</p>` : ''}
 
     <div class="stat-grid">
       <div class="stat-tile"><span class="stat-num mono">${total}</span><span class="stat-label">${t('stat_total')}</span></div>
@@ -2626,6 +2642,19 @@ function secretSettingsSheet(){
     </div>
 
     <div class="divider"></div>
+    <h3 style="margin-bottom:4px;">${t('motivation_title')}</h3>
+    <p class="field-hint" style="margin-bottom:10px;">${t('motivation_p')}</p>
+    <div class="checkbox-field" style="margin-bottom:10px;">
+      <input type="checkbox" id="motivation-enabled" data-action="toggle-motivation-enabled" ${state.motivationalQuotesEnabled?'checked':''} />
+      <label for="motivation-enabled">${t('motivation_enable_label')}</label>
+    </div>
+    <div class="field">
+      <label>${t('motivation_quotes_label')}</label>
+      <textarea data-action="edit-setting" data-field="motivationalQuotes" rows="6" placeholder="${t('motivation_quotes_placeholder')}">${esc(state.motivationalQuotes||'')}</textarea>
+      <span class="field-hint">${t('motivation_quotes_hint')}</span>
+    </div>
+
+    <div class="divider"></div>
     <p class="field-hint">Made by Martin Weiner, 08. 2026</p>
   `;
 }
@@ -3616,7 +3645,17 @@ function onChange(e){
   if(action==='edit-setting'){
     const field = t2.dataset.field;
     state[field] = t2.value;
+    if(field==='motivationalQuotes'){
+      const pool = t2.value.split('\n').map(s=>s.trim()).filter(Boolean);
+      ui.motivationalQuote = pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
+    }
     api('PATCH', '/api/settings', {[field]: t2.value}).catch(()=>showToast(t('toast_sync_failed')));
+    render();
+    return;
+  }
+  if(action==='toggle-motivation-enabled'){
+    state.motivationalQuotesEnabled = t2.checked;
+    api('PATCH', '/api/settings', {motivationalQuotesEnabled: t2.checked}).catch(()=>showToast(t('toast_sync_failed')));
     render();
     return;
   }

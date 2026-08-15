@@ -662,6 +662,8 @@ function getFullState(req) {
   let githubBackupConfigured = false;
   let altPin = '';
   let hasAltMasterPassword = false;
+  let motivationalQuotes = '';
+  let motivationalQuotesEnabled = true;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
@@ -671,6 +673,8 @@ function getFullState(req) {
     else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
     else if (r.key === 'altPin') altPin = r.value;
     else if (r.key === 'altMasterPasswordHash') { hasAltMasterPassword = !!r.value; /* never exposed to the client */ }
+    else if (r.key === 'motivationalQuotes') motivationalQuotes = r.value;
+    else if (r.key === 'motivationalQuotesEnabled') motivationalQuotesEnabled = r.value === '1';
     else schwellen[r.key] = parseInt(r.value, 10);
   });
   const inventar = db.prepare('SELECT * FROM inventar').all().map(itemRow);
@@ -681,7 +685,7 @@ function getFullState(req) {
   const testTypes = db.prepare('SELECT * FROM test_types ORDER BY sort_order').all().map(testTypeRow);
   const currentDevice = trustedDeviceFor(req);
   const trustedDevices = db.prepare('SELECT * FROM trusted_devices ORDER BY last_seen_at DESC').all().map(r => trustedDeviceRow(r, currentDevice && currentDevice.id));
-  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword };
+  return { categories, standorte, hersteller, statusListe: STATUS_LISTE, schwellen, pin, userName, casesRootCatId, inventar, vermietungen, customers, bundles, tags, testTypes, backupToken: BACKUP_TOKEN, trustedDevices, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword, motivationalQuotes, motivationalQuotesEnabled };
 }
 
 app.get('/api/state', (req, res) => {
@@ -914,6 +918,12 @@ app.patch('/api/settings', (req, res) => {
     if (pw.length < 8) return res.status(400).json({ error: 'alt master password must be at least 8 characters' });
     upsert.run('altMasterPasswordHash', bcrypt.hashSync(pw, 10));
   }
+  if (req.body.motivationalQuotes !== undefined) {
+    upsert.run('motivationalQuotes', String(req.body.motivationalQuotes));
+  }
+  if (req.body.motivationalQuotesEnabled !== undefined) {
+    upsert.run('motivationalQuotesEnabled', req.body.motivationalQuotesEnabled ? '1' : '0');
+  }
   const settingsRows = db.prepare('SELECT * FROM settings').all();
   const schwellen = {};
   let pin = '1234';
@@ -923,6 +933,8 @@ app.patch('/api/settings', (req, res) => {
   let githubBackupConfigured = false;
   let altPin = '';
   let hasAltMasterPassword = false;
+  let motivationalQuotes = '';
+  let motivationalQuotesEnabled = true;
   settingsRows.forEach(r => {
     if (r.key === 'pin') pin = r.value;
     else if (r.key === 'userName') userName = r.value;
@@ -932,9 +944,11 @@ app.patch('/api/settings', (req, res) => {
     else if (r.key === 'githubBackupToken') { githubBackupConfigured = !!r.value; /* never exposed to the client */ }
     else if (r.key === 'altPin') altPin = r.value;
     else if (r.key === 'altMasterPasswordHash') { hasAltMasterPassword = !!r.value; /* never exposed to the client */ }
+    else if (r.key === 'motivationalQuotes') motivationalQuotes = r.value;
+    else if (r.key === 'motivationalQuotesEnabled') motivationalQuotesEnabled = r.value === '1';
     else schwellen[r.key] = parseInt(r.value, 10);
   });
-  res.json({ ...schwellen, pin, userName, casesRootCatId, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword });
+  res.json({ ...schwellen, pin, userName, casesRootCatId, githubBackupRepo, githubBackupConfigured, altPin, hasAltMasterPassword, motivationalQuotes, motivationalQuotesEnabled });
 });
 
 /* ---- inventar ---- */

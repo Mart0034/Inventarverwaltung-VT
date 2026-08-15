@@ -200,6 +200,7 @@ button{cursor:pointer;}
   text-wrap:balance;
 }
 .page-sub{color:var(--text-muted);font-size:.85rem;margin:0 0 18px;}
+.page-sub.motivation-quote{font-style:italic;margin-top:-12px;}
 
 .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
 .stat-tile{
