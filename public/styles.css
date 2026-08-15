@@ -313,10 +313,11 @@ button{cursor:pointer;}
 .tool-btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
 
 .select-action-bar{
-  position:sticky;bottom:0;z-index:4;margin-top:12px;
+  flex:none;z-index:4;
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
   background:var(--shell-bg);border-top:1px solid var(--border);
-  padding:12px 2px;
+  padding:12px 16px;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom));
 }
 .select-action-bar .btn{width:auto;padding:9px 16px;}
 
@@ -651,6 +652,7 @@ button{cursor:pointer;}
 
   .screen{padding:36px 40px 60px;}
   .screen > *{max-width:980px;margin-left:auto;margin-right:auto;}
+  .select-action-bar{padding-left:40px;padding-right:40px;padding-bottom:12px;}
 
   .stat-grid{grid-template-columns:repeat(4,1fr);}
   .quick-grid{grid-template-columns:repeat(4,1fr);}

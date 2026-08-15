@@ -765,6 +765,7 @@ function render(){
       <div class="main-col">
         ${topbar()}
         <div class="screen">${screenBody()}</div>
+        ${ui.tab==='inventar' ? selectActionBar() : ''}
         ${fab()}
       </div>
       ${ui.toast?`<div class="toast">${esc(ui.toast)}</div>`:''}
@@ -842,6 +843,7 @@ function sidebar(){
 
 function fab(){
   if(ui.sheetStack.length) return '';
+  if(ui.tab==='inventar' && ui.selectMode) return '';
   if(ui.tab==='inventar') return `<button class="fab" data-action="open-new-item" aria-label="${t('quick_new_item')}">${ICONS.plus}<span class="fab-label">${t('quick_new_item')}</span></button>`;
   if(ui.tab==='vermietungen') return `<button class="fab" data-action="open-new-rental" aria-label="${t('quick_new_rental')}">${ICONS.plus}<span class="fab-label">${t('quick_new_rental')}</span></button>`;
   return '';
@@ -1123,7 +1125,6 @@ function screenInventar(){
       <div class="card-list">
         ${items.length? items.map(i=>itemCard(i,false,ui.selectMode,ui.showIncompleteOnly)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
       </div>
-      ${selectActionBar()}
     `;
   }
 
@@ -1136,7 +1137,6 @@ function screenInventar(){
     <div class="cat-tree">
       ${filteredTotal? catRoots().map(r=>renderInventarCatNode(r,0,ui.fStatus)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
     </div>
-    ${selectActionBar()}
   `;
 }
 
