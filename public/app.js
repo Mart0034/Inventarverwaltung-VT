@@ -1571,6 +1571,7 @@ function sheetOverlay(){
   const s = topSheet();
   let title = '', body = '';
   if(s.type==='item'){ title = s.inv; body = itemDetailSheet(byInv(s.inv)); }
+  else if(s.type==='photo-viewer'){ const it = byInv(s.inv); title = it? it.bez : ''; body = photoViewerSheet(it); }
   else if(s.type==='new-item'){ title = t('sheet_new_item'); body = newItemSheet(); }
   else if(s.type==='rental'){ const v = state.vermietungen.find(x=>x.id===s.id); title = v.kunde; body = rentalDetailSheet(v); }
   else if(s.type==='new-rental'){ title = t('sheet_new_rental'); body = newRentalSheet(); }
@@ -1686,10 +1687,9 @@ function itemDetailSheet(i){
     <div class="field">
       <label>${t('field_photo')}</label>
       ${i.foto ? `
-        <div class="photo-row">
+        <button type="button" class="photo-preview-btn" data-action="open-photo-viewer" data-inv="${i.inv}" aria-label="${t('field_photo')}">
           <img class="photo-preview" src="/photos/${encodeURIComponent(i.foto)}" alt="" />
-          <button class="link-btn" data-action="remove-item-photo" data-inv="${i.inv}">${t('remove_photo')}</button>
-        </div>
+        </button>
       ` : `
         <div class="photo-upload-row">
           <label class="photo-upload-btn">
@@ -1860,6 +1860,16 @@ function itemDetailSheet(i){
     <div class="divider"></div>
     <button class="link-btn" data-action="open-item-history" data-inv="${i.inv}" style="margin-bottom:14px;display:inline-block;">${t('btn_item_history')}</button>
     <button class="btn btn-secondary" data-action="delete-item" data-inv="${i.inv}" style="color:var(--status-crit);">${t('btn_delete_item')}</button>
+  `;
+}
+
+function photoViewerSheet(i){
+  if(!i || !i.foto) return '';
+  return `
+    <div class="photo-viewer">
+      <img class="photo-viewer-img" src="/photos/${encodeURIComponent(i.foto)}" alt="" />
+    </div>
+    <button class="btn btn-secondary" data-action="remove-item-photo" data-inv="${i.inv}" style="color:var(--status-crit);">${t('remove_photo')}</button>
   `;
 }
 
@@ -3066,6 +3076,8 @@ function onClick(e){
       break;
     case 'open-item':
       openSheet({type:'item', inv:t2.dataset.inv}); break;
+    case 'open-photo-viewer':
+      pushSheet({type:'photo-viewer', inv:t2.dataset.inv}); break;
     case 'open-new-item':
       ui.newItemDraft=null; openSheet({type:'new-item'}); break;
     case 'open-rental':
@@ -3186,7 +3198,7 @@ function onClick(e){
     case 'remove-item-photo': {
       const item = byInv(t2.dataset.inv);
       if(item) item.foto = '';
-      render();
+      popSheet();
       api('DELETE', `/api/inventar/${encodeURIComponent(t2.dataset.inv)}/photo`).catch(()=>showToast(t('toast_sync_failed')));
       break;
     }
