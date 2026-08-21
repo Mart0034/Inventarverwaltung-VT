@@ -1494,6 +1494,66 @@ app.get('/api/export/vermietung/:id/csv', (req, res) => {
   res.send(toCsv(rows, ['inv', 'bezeichnung', 'menge', 'miete_pro_tag', 'gepackt']));
 });
 
+function icsEscape(text) {
+  return String(text == null ? '' : text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+function icsDate(iso) {
+  return String(iso).replace(/-/g, '');
+}
+function icsStamp() {
+  return new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+const ICS_STRINGS = {
+  de: { pickup: 'Abholung', return: 'Rückgabe', items: 'Artikel' },
+  en: { pickup: 'Pickup', return: 'Return', items: 'Items' },
+};
+
+app.get('/api/vermietungen/:id/calendar.ics', (req, res) => {
+  const row = db.prepare('SELECT * FROM vermietungen WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'not found' });
+  const items = JSON.parse(row.items);
+  const s = ICS_STRINGS[req.query.lang === 'en' ? 'en' : 'de'];
+  const itemLines = items.map(it => {
+    const inv = db.prepare('SELECT bez FROM inventar WHERE inv = ?').get(it.inv);
+    const name = inv ? inv.bez : it.inv;
+    return it.menge > 1 ? `${name} x${it.menge}` : name;
+  });
+  const description = `${s.items}: ${itemLines.join(', ')}`;
+  const stamp = icsStamp();
+
+  const events = [
+    { uid: `rental-${row.id}-pickup@fundus`, date: row.von, summary: `${s.pickup}: ${row.kunde}` },
+    { uid: `rental-${row.id}-return@fundus`, date: row.bis, summary: `${s.return}: ${row.kunde}` },
+  ];
+  const veventBlocks = events.map(ev => [
+    'BEGIN:VEVENT',
+    `UID:${ev.uid}`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;VALUE=DATE:${icsDate(ev.date)}`,
+    `SUMMARY:${icsEscape(ev.summary)}`,
+    `DESCRIPTION:${icsEscape(description)}`,
+    'END:VEVENT',
+  ].join('\r\n')).join('\r\n');
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Fundus//Vermietung//DE',
+    'CALSCALE:GREGORIAN',
+    veventBlocks,
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="vermietung-${row.id}.ics"`);
+  res.send(ics);
+});
+
 /* ---- static frontend ---- */
 
 app.use('/photos', express.static(PHOTOS_DIR));

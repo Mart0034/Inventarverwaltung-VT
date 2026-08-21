@@ -170,6 +170,7 @@ const STRINGS = {
     timeline_hint:'Laufende und bevorstehende Vermietungen der nächsten {n} Tage.',
     empty_timeline:'Keine laufenden oder bevorstehenden Vermietungen in diesem Zeitraum.',
     sheet_invoice:'Rechnung', btn_export_invoice:'Als Rechnung exportieren',
+    btn_export_calendar:'In Kalender exportieren',
     invoice_no:'Rechnung {id}', invoice_qty:'Menge', invoice_rate:'Preis/Tag', invoice_sum:'Summe',
     invoice_footer:'Diese Rechnung ist ein Beispiel-Export und ersetzt keine steuerlich geprüfte Rechnungsstellung.',
     export_title:'Datenexport', export_p:'Einzelne Tabellen als CSV herunterladen oder alles gesammelt als ZIP.',
@@ -397,6 +398,7 @@ const STRINGS = {
     timeline_hint:'Active and upcoming rentals over the next {n} days.',
     empty_timeline:'No active or upcoming rentals in this period.',
     sheet_invoice:'Invoice', btn_export_invoice:'Export as invoice',
+    btn_export_calendar:'Export to calendar',
     invoice_no:'Invoice {id}', invoice_qty:'Qty', invoice_rate:'Price/day', invoice_sum:'Total',
     invoice_footer:'This invoice is a sample export and is not a tax-compliant document.',
     export_title:'Data export', export_p:'Download individual tables as CSV, or everything at once as a ZIP.',
@@ -2268,6 +2270,7 @@ function rentalDetailSheet(v){
     <div class="btn-row">
       <button class="btn btn-secondary" data-action="open-packlist" data-id="${v.id}">${t('btn_open_packlist')}</button>
       <button class="btn btn-secondary" data-action="export-invoice" data-id="${v.id}">${t('btn_export_invoice')}</button>
+      <a class="btn btn-secondary" href="/api/vermietungen/${v.id}/calendar.ics?lang=${ui.lang}">${t('btn_export_calendar')}</a>
     </div>
     ${v.status==='Reserviert'? `<div class="btn-row"><button class="btn btn-primary" data-action="rental-start" data-id="${v.id}">${t('btn_mark_handed_out')}</button></div>`:''}
     ${v.status==='Aktiv'? `<div class="btn-row"><button class="btn btn-primary" data-action="open-return" data-id="${v.id}">${t('btn_record_return')}</button></div>`:''}
