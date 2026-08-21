@@ -57,7 +57,8 @@ db.exec(`
     intervall INTEGER,
     nickname TEXT DEFAULT '',
     gewicht INTEGER NOT NULL DEFAULT 0,
-    einkaufspreis REAL
+    einkaufspreis REAL,
+    ignoriert INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS customers (
@@ -221,6 +222,7 @@ ensureColumn('inventar', 'intervall', 'intervall INTEGER');
 ensureColumn('inventar', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('inventar', 'gewicht', 'gewicht INTEGER NOT NULL DEFAULT 0');
 ensureColumn('inventar', 'einkaufspreis', 'einkaufspreis REAL');
+ensureColumn('inventar', 'ignoriert', 'ignoriert INTEGER NOT NULL DEFAULT 0');
 ensureColumn('inventar_checklist', 'alt_group', 'alt_group TEXT');
 ensureColumn('trusted_devices', 'nickname', "nickname TEXT DEFAULT ''");
 ensureColumn('vermietungen', 'customer_id', 'customer_id TEXT REFERENCES customers(id)');

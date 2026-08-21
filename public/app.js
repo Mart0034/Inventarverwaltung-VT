@@ -153,6 +153,10 @@ const STRINGS = {
     sheet_bundle_add_item:'Artikel hinzufügen', btn_add_bundle_item:'+ Artikel hinzufügen',
     bundle_add_item_hint:'Artikel zum Set hinzufügen.', already_in_set:'Bereits im Set',
     btn_select_items:'Auswählen', btn_cancel_select:'Abbrechen', btn_incomplete:'Unvollständig',
+    btn_ignore_incomplete:'Ignorieren', btn_unignore_incomplete:'Ignoriert ✕',
+    btn_show_ignored:'Ignorierte anzeigen', btn_show_incomplete:'Zurück zu Unvollständig',
+    btn_reset_new_item:'Alle Felder zurücksetzen', confirm_exit_new_item:'Neues Item verlassen? Deine Eingaben bleiben gespeichert, bis du sie zurücksetzt.',
+    confirm_reset_new_item:'Wirklich alle Felder dieses neuen Items zurücksetzen?', confirm_exit_app:'App wirklich verlassen?',
     incomplete_banner_title:'Unvollständig:',
     btn_add_to_rental:'Zur Vermietung', btn_save_as_set:'Als Set speichern',
     btn_bulk_edit:'Mehrere bearbeiten', sheet_bulk_edit:'Mehrere bearbeiten',
@@ -376,6 +380,10 @@ const STRINGS = {
     sheet_bundle_add_item:'Add item', btn_add_bundle_item:'+ Add item',
     bundle_add_item_hint:'Add an item to the set.', already_in_set:'Already in set',
     btn_select_items:'Select', btn_cancel_select:'Cancel', btn_incomplete:'Incomplete',
+    btn_ignore_incomplete:'Ignore', btn_unignore_incomplete:'Ignored ✕',
+    btn_show_ignored:'Show ignored', btn_show_incomplete:'Back to Incomplete',
+    btn_reset_new_item:'Reset all fields', confirm_exit_new_item:'Leave New Item? Your input stays saved until you reset it.',
+    confirm_reset_new_item:'Really reset all fields of this new item?', confirm_exit_app:'Really leave the app?',
     incomplete_banner_title:'Incomplete:',
     btn_add_to_rental:'To rental', btn_save_as_set:'Save as set',
     btn_bulk_edit:'Edit selected', sheet_bulk_edit:'Edit selected',
@@ -531,7 +539,7 @@ let lastSheetKey = null;
 let lastRenderedTab = null;
 
 let ui = {
-  tab:'start', sheetStack:[], search:'', fStatus:null, toast:null, showIncompleteOnly:false, showCasesOnly:false,
+  tab:'start', sheetStack:[], search:'', fStatus:null, toast:null, showIncompleteOnly:false, showIgnoredIncomplete:false, showCasesOnly:false,
   checklistGroupInv:null, checklistGroupSelection: new Set(),
   newItemDraft:null, newRentalDraft:null, returnDraft:null, newCustomerDraft:null, newBundleDraft:null,
   selectMode:false, selectedInv: new Set(),
@@ -716,7 +724,37 @@ async function doEnrollBiometric(){
 function openSheet(s){ ui.sheetStack = [s]; render(); }
 function pushSheet(s){ ui.sheetStack.push(s); render(); }
 function popSheet(){ ui.sheetStack.pop(); render(); }
-function closeSheets(){ ui.sheetStack = []; ui.newItemDraft=null; ui.newRentalDraft=null; ui.returnDraft=null; ui.newCustomerDraft=null; ui.newBundleDraft=null; lastSheetKey = null; render(); }
+// The new-item draft is intentionally NOT cleared here -- it's cached
+// (in-memory + localStorage) so closing this sheet and reopening "New Item"
+// later restores whatever was typed. It's only cleared on a successful save
+// or an explicit reset (see doSaveNewItem / reset-new-item-draft).
+function closeSheets(){ ui.sheetStack = []; ui.newRentalDraft=null; ui.returnDraft=null; ui.newCustomerDraft=null; ui.newBundleDraft=null; lastSheetKey = null; render(); }
+
+const NEW_ITEM_DRAFT_KEY = 'fundus_new_item_draft';
+function persistNewItemDraft(){
+  try{
+    if(ui.newItemDraft) localStorage.setItem(NEW_ITEM_DRAFT_KEY, JSON.stringify(ui.newItemDraft));
+    else localStorage.removeItem(NEW_ITEM_DRAFT_KEY);
+  } catch(e){ /* storage full/unavailable -- draft caching is best-effort */ }
+}
+function loadNewItemDraftFromStorage(){
+  try{
+    const raw = localStorage.getItem(NEW_ITEM_DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(e){ return null; }
+}
+function newItemDraftHasContent(){
+  const d = ui.newItemDraft;
+  if(!d) return false;
+  return !!(d.inv || d.bez || d.hersteller || d.modell || d.serien || d.miete || d.letzte || d.notiz ||
+    d.einkaufspreis || (d.gewicht && d.gewicht!=='0') || d.fotoDataUrl || d.nickname ||
+    (d.files && d.files.length) || (d.testTypes && d.testTypes.length) || (d.checklistExtra && d.checklistExtra.length));
+}
+function confirmCloseSheetIfNeeded(){
+  const top = ui.sheetStack[ui.sheetStack.length-1];
+  if(top && top.type==='new-item' && newItemDraftHasContent()) return confirm(t('confirm_exit_new_item'));
+  return true;
+}
 function topSheet(){ return ui.sheetStack[ui.sheetStack.length-1] || null; }
 
 /* ---------- render ---------- */
@@ -736,6 +774,7 @@ function render(){
     app.addEventListener('click', onClick);
     return;
   }
+  persistNewItemDraft();
   // Preserve scroll position across re-renders, but only when it's genuinely
   // the same screen/sheet being redrawn (e.g. toggling a category open) --
   // not when switching tabs or opening a different sheet, which should
@@ -932,7 +971,7 @@ function incompleteFields(i){
 }
 
 function isItemIncomplete(i){
-  return incompleteFields(i).length > 0;
+  return !i.ignoriert && incompleteFields(i).length > 0;
 }
 
 function itemWeight(i){ return i.gewicht || 0; }
@@ -979,6 +1018,21 @@ function itemCard(i, showPruef, selectable, showIncomplete){
   const thumb = i.foto ? `<img class="ic-thumb" src="/photos/${encodeURIComponent(i.foto)}" alt="" loading="lazy" />` : '';
 
   if(!selectable){
+    if(showIncomplete){
+      return `
+        <div class="item-card ${cls}">
+          <button class="ic-open-btn" data-action="open-item" data-inv="${i.inv}">
+            ${thumb}
+            <div class="ic-body">
+              <span class="inv-num mono">${i.inv}</span>
+              <span class="ic-title">${esc(i.bez)}</span>
+              <span class="${metaClass}">${metaLine}</span>
+            </div>
+            ${pill}
+          </button>
+          <button class="tool-btn ic-ignore-btn" data-action="toggle-ignore-incomplete" data-inv="${i.inv}">${i.ignoriert ? t('btn_unignore_incomplete') : t('btn_ignore_incomplete')}</button>
+        </div>`;
+    }
     return `
       <button class="item-card ${cls}" data-action="open-item" data-inv="${i.inv}">
         ${thumb}
@@ -1008,6 +1062,19 @@ function countItemsUnderStatus(id, statusFilter){
   return state.inventar.filter(i=>ids.has(i.cat) && (!statusFilter || i.status===statusFilter)).length;
 }
 
+function itemsUnderCat(id, statusFilter){
+  const ids = new Set(descendantCatIds(id));
+  return state.inventar.filter(i=>ids.has(i.cat) && (!statusFilter || i.status===statusFilter));
+}
+
+function catSelectionState(id, statusFilter){
+  const items = itemsUnderCat(id, statusFilter);
+  if(!items.length) return 'none';
+  const n = items.filter(i=>ui.selectedInv.has(i.inv)).length;
+  if(n===0) return 'none';
+  return n===items.length ? 'all' : 'some';
+}
+
 function renderInventarCatNode(node, depth, statusFilter){
   const children = catChildren(node.id);
   const directItems = state.inventar.filter(i=>i.cat===node.id && (!statusFilter || i.status===statusFilter));
@@ -1021,14 +1088,18 @@ function renderInventarCatNode(node, depth, statusFilter){
     .map(tg=>({tag:tg, items: directItems.filter(i=>i.tag===tg.id)}))
     .filter(g=>g.items.length);
 
+  const selState = ui.selectMode ? catSelectionState(node.id, statusFilter) : 'none';
   return `
     <div class="cat-node" style="margin-left:${depth*10}px;">
-      <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}">
-        ${expanded?ICONS.chevDown:ICONS.chevRight}
-        <span class="cat-code mono">${esc(node.code)}</span>
-        <span class="cat-name">${esc(node.name)}</span>
-        <span class="cat-count">${totalCount}</span>
-      </button>
+      <div class="cat-row">
+        ${ui.selectMode ? `<button type="button" class="pack-check ${selState==='all'?'checked':''} ${selState==='some'?'partial':''}" data-action="toggle-select-cat" data-id="${node.id}" aria-label="${t('btn_select_items')}">${selState==='all'?ICONS.check:(selState==='some'?'−':'')}</button>` : ''}
+        <button class="cat-row-toggle" data-action="toggle-cat-expand" data-id="${node.id}" style="${ui.selectMode?'width:auto;flex:1;':''}">
+          ${expanded?ICONS.chevDown:ICONS.chevRight}
+          <span class="cat-code mono">${esc(node.code)}</span>
+          <span class="cat-name">${esc(node.name)}</span>
+          <span class="cat-count">${totalCount}</span>
+        </button>
+      </div>
       ${expanded ? `
         <div class="cat-children">
           ${taggedGroups.map(g=>`
@@ -1111,9 +1182,13 @@ function screenInventar(){
   }
 
   if(q || ui.showIncompleteOnly){
+    const viewIgnored = ui.showIncompleteOnly && !q && ui.showIgnoredIncomplete;
+    const ignoredCount = state.inventar.filter(i=>i.ignoriert && incompleteFields(i).length>0).length;
     const items = state.inventar.filter(i=>{
       if(ui.fStatus && i.status!==ui.fStatus) return false;
-      if(ui.showIncompleteOnly && !isItemIncomplete(i)) return false;
+      if(viewIgnored){
+        if(!(i.ignoriert && incompleteFields(i).length>0)) return false;
+      } else if(ui.showIncompleteOnly && !isItemIncomplete(i)) return false;
       if(q && ![i.inv,i.bez,i.hersteller,i.modell,i.serien,i.standort].join(' ').toLowerCase().includes(q)) return false;
       return true;
     });
@@ -1122,6 +1197,10 @@ function screenInventar(){
       <p class="page-sub">${t('inv_sub',{n:items.length,m:state.inventar.length})}</p>
       ${searchBar}
       ${selectToggle}
+      ${ui.showIncompleteOnly && !q ? `
+        <div class="tool-row">
+          <button class="tool-btn ${ui.showIgnoredIncomplete?'active':''}" data-action="toggle-ignored-incomplete-view">${ui.showIgnoredIncomplete ? t('btn_show_incomplete') : `${t('btn_show_ignored')}${ignoredCount? ` (${ignoredCount})` : ''}`}</button>
+        </div>` : ''}
       <div class="card-list">
         ${items.length? items.map(i=>itemCard(i,false,ui.selectMode,ui.showIncompleteOnly)).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_search')}</p></div>`}
       </div>
@@ -2054,6 +2133,7 @@ function newItemSheet(){
     <div class="btn-row">
       <button class="btn btn-primary" data-action="save-new-item">${t('btn_create_item')}</button>
     </div>
+    <button class="link-btn" data-action="reset-new-item-draft" style="margin-top:10px;color:var(--status-crit);">${t('btn_reset_new_item')}</button>
   `;
 }
 
@@ -3024,12 +3104,22 @@ function showToast(msg){
 
 /* ---------- events ---------- */
 
+let searchDebounceTimer = null;
+let intentionalUnload = false;
+
 function attachEvents(){
   const app = document.getElementById('app');
 
   const search = document.getElementById('search-input');
   if(search){
-    search.addEventListener('input', e=>{ ui.search = e.target.value; render(); requestAnimationFrame(()=>{ const s=document.getElementById('search-input'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); } }); });
+    search.addEventListener('input', e=>{
+      ui.search = e.target.value;
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(()=>{
+        render();
+        requestAnimationFrame(()=>{ const s=document.getElementById('search-input'); if(s){ s.focus(); s.setSelectionRange(s.value.length,s.value.length); } });
+      }, 250);
+    });
   }
   const ns = document.getElementById('new-standort');
   if(ns){ ns.addEventListener('keydown', e=>{ if(e.key==='Enter'){ doAddStandort(); } }); }
@@ -3043,7 +3133,7 @@ function attachEvents(){
 function onClick(e){
   const bg = e.target.closest('[data-action="close-sheet-bg"]');
   const sheetInner = e.target.closest('[data-stop]');
-  if(bg && !sheetInner){ closeSheets(); return; }
+  if(bg && !sheetInner){ if(confirmCloseSheetIfNeeded()) closeSheets(); return; }
 
   const t2 = e.target.closest('[data-action]');
   if(!t2) return;
@@ -3079,7 +3169,8 @@ function onClick(e){
     case 'open-photo-viewer':
       pushSheet({type:'photo-viewer', inv:t2.dataset.inv}); break;
     case 'open-new-item':
-      ui.newItemDraft=null; openSheet({type:'new-item'}); break;
+      if(!ui.newItemDraft) ui.newItemDraft = loadNewItemDraftFromStorage();
+      openSheet({type:'new-item'}); break;
     case 'open-rental':
       openSheet({type:'rental', id:t2.dataset.id}); break;
     case 'open-new-rental':
@@ -3154,7 +3245,14 @@ function onClick(e){
     case 'back-sheet':
       popSheet(); break;
     case 'close-sheet':
-      closeSheets(); break;
+      if(confirmCloseSheetIfNeeded()) closeSheets(); break;
+    case 'reset-new-item-draft':
+      if(confirm(t('confirm_reset_new_item'))){
+        ui.newItemDraft = null;
+        persistNewItemDraft();
+        render();
+      }
+      break;
     case 'filter-status':
       ui.fStatus = t2.dataset.val || null; render(); break;
     case 'suggest-inv': {
@@ -3427,8 +3525,21 @@ function onClick(e){
       render(); break;
     case 'toggle-incomplete-filter':
       ui.showIncompleteOnly = !ui.showIncompleteOnly;
+      ui.showIgnoredIncomplete = false;
       if(ui.showIncompleteOnly) ui.showCasesOnly = false;
       render(); break;
+    case 'toggle-ignored-incomplete-view':
+      ui.showIgnoredIncomplete = !ui.showIgnoredIncomplete;
+      render(); break;
+    case 'toggle-ignore-incomplete': {
+      const item = byInv(t2.dataset.inv);
+      if(item){
+        item.ignoriert = !item.ignoriert;
+        render();
+        api('PATCH', `/api/inventar/${encodeURIComponent(item.inv)}`, {ignoriert:item.ignoriert}).catch(()=>showToast(t('toast_sync_failed')));
+      }
+      break;
+    }
     case 'toggle-cases-filter':
       ui.showCasesOnly = !ui.showCasesOnly;
       if(ui.showCasesOnly) ui.showIncompleteOnly = false;
@@ -3437,6 +3548,12 @@ function onClick(e){
       const inv = t2.dataset.inv;
       if(ui.selectedInv.has(inv)){ ui.selectedInv.delete(inv); }
       else { ui.selectedInv.add(inv); }
+      render(); break;
+    }
+    case 'toggle-select-cat': {
+      const items = itemsUnderCat(t2.dataset.id, ui.fStatus);
+      const allSelected = items.length && items.every(i=>ui.selectedInv.has(i.inv));
+      items.forEach(i=> allSelected ? ui.selectedInv.delete(i.inv) : ui.selectedInv.add(i.inv));
       render(); break;
     }
     case 'bulk-add-to-rental': {
@@ -3523,9 +3640,11 @@ function onClick(e){
       break;
     }
     case 'lock-now':
+      intentionalUnload = true;
       api('POST', '/api/logout').finally(()=>location.reload());
       break;
     case 'reload-app':
+      intentionalUnload = true;
       location.reload();
       break;
     case 'set-master-password': {
@@ -3648,6 +3767,7 @@ function onChange(e){
     const d = ui.newItemDraft;
     const field = t2.dataset.field;
     d[field] = t2.type==='checkbox' ? t2.checked : t2.value;
+    persistNewItemDraft();
     if(field==='pruef') render();
     return;
   }
@@ -3866,6 +3986,8 @@ async function doSaveNewItem(){
   const fotoDataUrl = d.fotoDataUrl;
   const draftFiles = d.files;
   state.inventar.push(item);
+  ui.newItemDraft = null;
+  persistNewItemDraft();
   closeSheets();
   showToast(t('toast_item_created',{inv:item.inv}));
   try {
@@ -4173,6 +4295,16 @@ async function doAddHersteller(){
 loadState();
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && state) loadState(); });
 window.addEventListener('focus', ()=>{ if(state) loadState(); });
+
+// Confirm before the tab/app actually closes or navigates away. Skipped for
+// the app's own reload/logout actions (they set intentionalUnload first) so
+// those don't double-prompt. Browsers only show their own generic wording
+// here -- the string in e.returnValue is ignored by modern browsers.
+window.addEventListener('beforeunload', (e) => {
+  if(intentionalUnload || !state) return;
+  e.preventDefault();
+  e.returnValue = '';
+});
 
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{ navigator.serviceWorker.register('/sw.js').catch(()=>{}); });

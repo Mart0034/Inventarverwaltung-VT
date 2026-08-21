@@ -239,6 +239,8 @@ button{cursor:pointer;}
 }
 .incomplete-banner-text{font-size:.8rem;color:var(--status-crit);line-height:1.35;}
 .incomplete-banner-text strong{font-weight:700;}
+.ic-open-btn{display:flex;align-items:center;gap:11px;flex:1;min-width:0;background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit;}
+.ic-ignore-btn{flex:none;font-size:.72rem;padding:6px 10px;white-space:nowrap;}
 .item-card.crit{border-left-color:var(--status-crit);}
 .item-card.soon{border-left-color:var(--status-soon);}
 .item-card.warn{border-left-color:var(--status-warn);}
@@ -516,6 +518,7 @@ button{cursor:pointer;}
   display:flex;align-items:center;justify-content:center;background:var(--surface);
 }
 .pack-check.checked{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+.pack-check.partial{background:var(--accent-wash);border-color:var(--accent);color:var(--accent-strong);font-weight:700;line-height:1;}
 .pack-check svg{width:14px;height:14px;}
 .pack-row .pr-title{font-weight:600;font-size:.88rem;}
 .pack-row.checked .pr-title{text-decoration:line-through;color:var(--text-faint);}

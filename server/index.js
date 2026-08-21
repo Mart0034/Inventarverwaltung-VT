@@ -603,7 +603,7 @@ app.delete('/api/trusted-devices/:id', (req, res) => {
 
 
 const STATUS_LISTE = ['Verfügbar', 'Reserviert', 'Vermietet', 'Defekt', 'In Reparatur', 'Ausgemustert', 'Verloren'];
-const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'tag', 'intervall', 'nickname', 'gewicht', 'einkaufspreis'];
+const INVENTAR_FIELDS = ['bez', 'hersteller', 'modell', 'serien', 'standort', 'parent', 'status', 'miete', 'pruef', 'letzte', 'naechste', 'notiz', 'cat', 'tag', 'intervall', 'nickname', 'gewicht', 'einkaufspreis', 'ignoriert'];
 const CUSTOMER_FIELDS = ['name', 'firma', 'email', 'telefon', 'adresse', 'notiz'];
 
 // Track-keeping for inventar field changes -- see the audit_log table
@@ -635,7 +635,7 @@ function filesForVermietung(id) {
     .map(f => ({ id: f.id, name: f.original_name, mime: f.mime, size: f.size, uploadedAt: f.uploaded_at, url: `/files/${encodeURIComponent(f.filename)}` }));
 }
 function itemRow(row) {
-  return { ...row, pruef: !!row.pruef, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv), files: filesForInv(row.inv) };
+  return { ...row, pruef: !!row.pruef, ignoriert: !!row.ignoriert, parent: row.parent || null, tag: row.tag || null, checklist: checklistForInv(row.inv), files: filesForInv(row.inv) };
 }
 function rentalRow(row) {
   return { ...row, items: JSON.parse(row.items), pack: JSON.parse(row.pack), archiviert: !!row.archiviert, files: filesForVermietung(row.id) };
@@ -1007,7 +1007,7 @@ app.patch('/api/inventar/:inv', (req, res) => {
   if (!row) return res.status(404).json({ error: 'not found' });
   const updates = {};
   for (const f of INVENTAR_FIELDS) {
-    if (req.body[f] !== undefined) updates[f] = f === 'pruef' ? (req.body[f] ? 1 : 0) : req.body[f];
+    if (req.body[f] !== undefined) updates[f] = (f === 'pruef' || f === 'ignoriert') ? (req.body[f] ? 1 : 0) : req.body[f];
   }
   const keys = Object.keys(updates);
   if (keys.length === 0) return res.json(itemRow(row));
