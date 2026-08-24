@@ -3741,7 +3741,7 @@ function onChange(e){
     const inv = t2.dataset.inv;
     const file = t2.files && t2.files[0];
     if(!file) return;
-    resizeImageToDataUrl(file, 320, 0.72).then(dataUrl=>{
+    resizeImageToDataUrl(file, 720, 0.72).then(dataUrl=>{
       return api('POST', `/api/inventar/${encodeURIComponent(inv)}/photo`, {dataUrl});
     }).then(updated=>{
       const item = byInv(inv);
@@ -3869,7 +3869,7 @@ function onChange(e){
   if(action==='upload-draft-photo'){
     const file = t2.files && t2.files[0];
     if(!file) return;
-    resizeImageToDataUrl(file, 320, 0.72).then(dataUrl=>{
+    resizeImageToDataUrl(file, 720, 0.72).then(dataUrl=>{
       ui.newItemDraft.fotoDataUrl = dataUrl;
       render();
     }).catch(()=>showToast(t('toast_sync_failed')));

@@ -1028,7 +1028,7 @@ app.post('/api/inventar/:inv/photo', (req, res) => {
   if (!match) return res.status(400).json({ error: 'expected a base64 image data URL' });
   const ext = match[1] === 'jpg' ? 'jpeg' : match[1];
   const buffer = Buffer.from(match[2], 'base64');
-  if (buffer.length > 800 * 1024) return res.status(413).json({ error: 'image too large' });
+  if (buffer.length > 3 * 1024 * 1024) return res.status(413).json({ error: 'image too large' });
   if (row.foto) { try { fs.unlinkSync(path.join(PHOTOS_DIR, row.foto)); } catch (e) { /* already gone */ } }
   const filename = `${req.params.inv.replace(/[^a-zA-Z0-9.-]/g, '_')}-${Date.now()}.${ext}`;
   fs.writeFileSync(path.join(PHOTOS_DIR, filename), buffer);
