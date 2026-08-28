@@ -32,6 +32,8 @@ const STRINGS = {
     field_username:'Name', username_placeholder:'z. B. Martin',
     field_appname:'App-Name', appname_placeholder:'Fundus', appname_p:'Erscheint oben neben dem Logo, z. B. „Fundus - Inventar".',
     start_sub:'{date} · {n} Artikel im Fundus',
+    current_next_rental:'Aktuelle & nächste Vermietung', empty_rentals_upcoming:'Keine aktuellen oder anstehenden Vermietungen.',
+    rental_due_for_return:'Rückgabe fällig',
     stat_total:'Gesamt', stat_available:'Verfügbar', stat_rented:'Vermietet', stat_due:'Prüfung fällig',
     due_inspections:'Fällige Prüfungen', view_all:'Alle ansehen',
     empty_inspections:'Keine anstehenden Prüfungen.',
@@ -260,6 +262,8 @@ const STRINGS = {
     field_username:'Name', username_placeholder:'e.g. Martin',
     field_appname:'App name', appname_placeholder:'Fundus', appname_p:'Shows up top next to the logo, e.g. "Fundus - Inventory".',
     start_sub:'{date} · {n} items in Fundus',
+    current_next_rental:'Current & next rental', empty_rentals_upcoming:'No current or upcoming rentals.',
+    rental_due_for_return:'Return due',
     stat_total:'Total', stat_available:'Available', stat_rented:'Rented', stat_due:'Checks due',
     due_inspections:'Upcoming inspections', view_all:'View all',
     empty_inspections:'No upcoming inspections.',
@@ -899,6 +903,36 @@ function screenBody(){
   return '';
 }
 
+function rankedUpcomingRentals(){
+  const todayIso = new Date().toISOString().slice(0,10);
+  const relevant = state.vermietungen.filter(v=>!v.archiviert && (v.status==='Aktiv' || v.status==='Reserviert'));
+  return relevant.map(v=>{
+    const due = v.status==='Aktiv' && v.bis<=todayIso;
+    const group = due ? 0 : (v.status==='Aktiv' ? 1 : 2);
+    const sortKey = v.status==='Reserviert' ? v.von : v.bis;
+    return {v, due, group, sortKey};
+  }).sort((a,b)=> a.group-b.group || a.sortKey.localeCompare(b.sortKey));
+}
+
+function currentRentalSection(){
+  const top = rankedUpcomingRentals().slice(0,4);
+  return `
+    <div class="section-head"><h2>${t('current_next_rental')}</h2><button class="link-btn" data-action="tab" data-tab="vermietungen">${t('view_all')}</button></div>
+    <div class="card-list">
+      ${top.length? top.map(({v,due})=>`
+        <div class="rental-mini-card ${due?'due':''}">
+          <button type="button" class="rental-mini-open" data-action="open-rental" data-id="${v.id}">
+            <span class="ic-title">${esc(v.kunde)}</span>
+            <span class="ic-meta">${fmtDate(v.von)} – ${fmtDate(v.bis)}${due?` · ${t('rental_due_for_return')}`:''}</span>
+            <span class="pill ${rentalStatusPill(v.status)}">${rentalStatusLabel(v.status)}</span>
+          </button>
+          ${due? `<button class="btn btn-primary rental-mini-return" data-action="open-return" data-id="${v.id}">${t('btn_record_return')}</button>` : ''}
+        </div>
+      `).join('') : `<div class="empty-state">${ICONS.empty}<p>${t('empty_rentals_upcoming')}</p></div>`}
+    </div>
+  `;
+}
+
 function screenStart(){
   const total = state.inventar.length;
   const verf = state.inventar.filter(i=>i.status==='Verfügbar').length;
@@ -918,6 +952,8 @@ function screenStart(){
       <div class="stat-tile"><span class="stat-num mono">${vermietet}</span><span class="stat-label">${t('stat_rented')}</span></div>
       <div class="stat-tile ${faellig>0?'attn':''}"><span class="stat-num mono">${faellig}</span><span class="stat-label">${t('stat_due')}</span></div>
     </div>
+
+    ${currentRentalSection()}
 
     <div class="section-head"><h2>${t('due_inspections')}</h2><button class="link-btn" data-action="tab" data-tab="pruefungen">${t('view_all')}</button></div>
     <div class="card-list">
@@ -2559,6 +2595,7 @@ function returnSheet(v){
           <option value="Verfügbar" ${d[inv]==='Verfügbar'?'selected':''}>${statusLabel('Verfügbar')}</option>
           <option value="Defekt" ${d[inv]==='Defekt'?'selected':''}>${statusLabel('Defekt')}</option>
           <option value="In Reparatur" ${d[inv]==='In Reparatur'?'selected':''}>${statusLabel('In Reparatur')}</option>
+          <option value="Verloren" ${d[inv]==='Verloren'?'selected':''}>${statusLabel('Verloren')}</option>
         </select>
       </div>`; }).join('')}
     <div class="btn-row">

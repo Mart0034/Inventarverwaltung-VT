@@ -246,6 +246,18 @@ button{cursor:pointer;}
 .item-card.warn{border-left-color:var(--status-warn);}
 .item-card.ok{border-left-color:var(--status-ok);}
 
+.rental-mini-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:12px 13px;box-shadow:var(--shadow-card);
+  display:flex;align-items:center;gap:11px;border-left:3px solid var(--border);
+}
+.rental-mini-card.due{border-left-color:var(--status-crit);}
+.rental-mini-open{display:flex;flex-direction:column;align-items:flex-start;gap:3px;flex:1;min-width:0;background:none;border:none;padding:0;text-align:left;cursor:pointer;color:inherit;}
+.rental-mini-open .ic-title{font-weight:600;font-size:.94rem;}
+.rental-mini-open .ic-meta{font-size:.76rem;color:var(--text-muted);}
+.rental-mini-card.due .ic-meta{color:var(--status-crit);font-weight:600;}
+.rental-mini-return{flex:none;font-size:.78rem;padding:8px 12px;white-space:nowrap;}
+
 .rental-pick-row .pack-check, .select-row .pack-check{flex:none;}
 .conflict-note{
   margin-left:auto;flex:none;text-align:right;max-width:40%;
